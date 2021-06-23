@@ -1,0 +1,28 @@
+{
+  "name": "lab_patrol",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node dist/main"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/ping": "^0.2.0",
+    "@types/sqlite3": "^3.1.7",
+    "@types/ssh2": "^0.5.46",
+    "@types/vorpal": "^1.12.0",
+    "cluster": "^0.7.7",
+    "log4js": "^6.3.0",
+    "pbjs": "0.0.14",
+    "ping": "^0.4.1",
+    "protobufjs": "^6.10.2",
+    "sqlite3": "^5.0.2",
+    "ssh2": "^0.8.9",
+    "telnet-client": "^1.4.9",
+    "telnet-stream": "^1.0.5",
+    "vorpal": "^1.12.0"
+  }
+}
