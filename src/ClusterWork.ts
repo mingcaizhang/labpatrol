@@ -750,8 +750,8 @@ function setupVorpal(vorpal: Vorpal, clusterMaster: ClusterWork) {
         let ipRange: IpPrefixInfo = {
             ipPrefix: '10.245',
             subLenth: 16,
-            start: 20,
-            end: 25,
+            start: 2,
+            end: 255,
         }
         const vorpal = new Vorpal();
         setupVorpal(vorpal, labPatrolCluster)
