@@ -64,6 +64,7 @@ export class BunchWork {
             this.activeIpList = await aliveFind.AliveDetect();
         }
     }
+
     async processAxosOntWork(ipList:string[]) {
         let promiseParal = []
         let promiseNum = 0
@@ -296,6 +297,70 @@ export class BunchWork {
 
     }
 
+    async processAxosWork(ipList:string[]=[], type:number) {
+        let promiseParal = []
+        let promiseNum = 0
+        let checkIpList = []
+        let maxParal = 1
+        let needIpList = []
+
+        if (ipList.length === 0) {
+            await this.activeIpFetch();
+            needIpList = this.activeIpList;
+        }else {
+            needIpList = ipList;
+        }
+
+        this.axosIpList = []
+
+        for (let jj = 0; jj < needIpList.length; jj++) {
+            checkIpList.push(needIpList[jj])
+            promiseParal.push(AXOSCard.doPatrolWork(needIpList[jj], type))
+            promiseNum++;
+            if (promiseNum == maxParal) {
+                logger.info(`processAxosWork: ${JSON.stringify(checkIpList)} begin`)
+                let res = await Promise.all(promiseParal)
+                // logger.info('paral done')
+                logger.info(`processAxosWork: ${JSON.stringify(checkIpList)} ${JSON.stringify(res)}`)
+                for (let zz = 0; zz< res.length; zz++) {
+                    if (res[zz] === -1) {
+                        continue;
+                    }else {
+                        let conRes:LabPatroResult = res[zz] as unknown as LabPatroResult
+                        let cardRes:cardResponse  = {address: checkIpList[zz], platform:'axos',
+                            cardInfos:conRes.cardInfo as unknown as oneCardInfo[]}
+                        this.cardBunchRes.push(cardRes);
+                        let ontRes:ontResponse =  {address: checkIpList[zz], platform:'axos',
+                            ontInfos:conRes.ontInfo as unknown as commonInfo[]}
+                        this.ontBunchRes.push(ontRes)
+                        this.axosIpList.push(checkIpList[zz]);
+                    }
+                }               
+                promiseNum = 0;
+                promiseParal = []
+                checkIpList = []
+            }
+        }
+
+        if (promiseParal.length != 0) {
+            let res = await Promise.all(promiseParal)
+            for (let zz = 0; zz< res.length; zz++) {
+                if (res[zz] === -1) {
+                    continue;
+                }else {
+                    let conRes:LabPatroResult = res[zz] as unknown as LabPatroResult
+                    let cardRes:cardResponse  = {address: checkIpList[zz], platform:'axos',
+                        cardInfos:conRes.cardInfo as unknown as oneCardInfo[]}
+                    this.cardBunchRes.push(cardRes);
+                    this.axosIpList.push(checkIpList[zz]);
+
+                }
+            }        
+        }
+
+        
+    }
+
     async processExaWork(ipList:string[]=[], type:number) {
         let promiseParal = []
         let promiseNum = 0
@@ -360,14 +425,15 @@ export class BunchWork {
         
     }
     async processWork() {
-        // await this.processAxosWork();
         let ipList:string[] = []
-        // for (let ii = 0; ii < this.activeIpList.length; ii++) {
-        //     if (this.axosIpList.indexOf(this.activeIpList[ii]) === -1) {
-        //         ipList.push(this.activeIpList[ii])
-        //     } 
-        // }
         this.cardBunchRes = []
+        this.ontBunchRes = []
+        await this.processAxosWork(ipList, LabPatroType.LabPatrolType_AXOSCard |LabPatroType.LabPatrolType_ONT);
+        for (let ii = 0; ii < this.activeIpList.length; ii++) {
+            if (this.axosIpList.indexOf(this.activeIpList[ii]) === -1) {
+                ipList.push(this.activeIpList[ii])
+            } 
+        }
         await this.processExaWork(ipList, LabPatroType.LabPatrolType_E7Card |LabPatroType.LabPatrolType_ONT);
         logger.info('workerID ' + this.workerID + ' handle subnet '+ this.ipRange?.ipPrefix + ' done')       
     }

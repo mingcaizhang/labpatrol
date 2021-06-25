@@ -268,6 +268,9 @@ export class ResultSplit{
                     let newResult = new ResultFormat()
                     newResult.level = spaceNum;
                     [newResult.name, newResult.value] = this.resultLineWithColonToNameValue(this.splitLines[ii])
+                    if (newResult.value === '') {
+                        continue
+                    }
                     newResult.parent = parent;
                     previous = newResult;
                     parent?.childs.push(newResult)
@@ -275,6 +278,9 @@ export class ResultSplit{
                     let newResult = new ResultFormat()
                     newResult.level = spaceNum;
                     [newResult.name, newResult.value] = this.resultLineWithColonToNameValue(this.splitLines[ii])
+                    if (newResult.value === '') {
+                        continue
+                    }
                     newResult.parent = previous
                     parent = previous;
                     previous = newResult;
@@ -285,6 +291,9 @@ export class ResultSplit{
                     let newResult = new ResultFormat()
                     newResult.level = spaceNum;   
                     [newResult.name, newResult.value] = this.resultLineWithColonToNameValue(this.splitLines[ii])
+                    if (newResult.value === '') {
+                        continue
+                    }
                     parent = parent?.parent
                     previous = newResult;
                     parent?.childs.push(newResult)       

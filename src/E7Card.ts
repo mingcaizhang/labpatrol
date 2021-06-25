@@ -162,7 +162,7 @@ export class E7Card {
 if(__filename === require.main?.filename) {
     (async ()=>{
         // await E7Card.checkCard('10.245.69.179')
-        let res = await E7Card.doPatrolWork('10.245.69.179', LabPatroType.LabPatrolType_E7Card | LabPatroType.LabPatrolType_ONT)
+        let res = await E7Card.doPatrolWork('10.245.12.100', LabPatroType.LabPatrolType_E7Card | LabPatroType.LabPatrolType_ONT)
         if (res != -1) {
             let conRes = res as unknown as LabPatroResult
             console.log(JSON.stringify(conRes.cardInfo))

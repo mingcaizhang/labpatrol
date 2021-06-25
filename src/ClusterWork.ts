@@ -12,7 +12,9 @@ logger.setLogLevel('file', 'info')
 logger.closeStdout()
 
 interface WorkInfo {
-    worker: Worker;
+    worker: Worker,
+    hasTask:boolean,
+    handleIp:IpPrefixInfo|undefined
 }
 
 enum MessageID {
@@ -37,6 +39,10 @@ enum PatroType {
 
 }
 
+interface DBTableDesc {
+
+
+}
 interface PatrolReqInfo {
     reqType: number;
     ipRange: string;
@@ -68,14 +74,36 @@ class ClusterWork {
         'SERIAL NO',
         'details']
     dataStore:DataStore|undefined = undefined;
-    
+    currDesctableName = 'tbCurrDesc'
+    availableDescTableName = 'tbAvailableDesc'
+    axosCardTableName =''
+    axosOntTableName = ''
+    exaCardTableName = ''
+    exaOntTableName= ''
+    axosCardTableColumn:string[] = []
+    axosOntTableColumn:string[] = []
+    exaCardTableColumn:string[] =[]
+    exaOntTableColumn:string[]= []
     constructor() {
 
     }
 
     showState(vorpal: Vorpal) {
-        vorpal.log('next IP sub ' + this.ipRange?.ipPrefix + '.' + (this.ipL1 + 1) + '.0')
+       for (let ii = 0; ii < this.workerList.length; ii++) {
+            vorpal.log(`work ID: ${ii+1} hasTask: ${this.workerList[ii].hasTask} hanleIP: ${this.workerList[ii].handleIp?.ipPrefix}`)
+        }
 
+        vorpal.log(`axosCardTableName:${this.axosCardTableName} axosOntTableName:${this.axosOntTableName}`)
+        vorpal.log(`exaCardTableName:${this.exaCardTableName} exaOntTableName:${this.exaOntTableName}`)
+        
+        vorpal.log('\r\naxosCardTableSchema:')
+        vorpal.log(JSON.stringify(this.axosCardTableColumn))
+        vorpal.log('\r\naxosOntTableSchema:')
+        vorpal.log(JSON.stringify(this.axosOntTableColumn))
+        vorpal.log('\r\nexaCardTableSchema:')
+        vorpal.log(JSON.stringify(this.exaCardTableColumn))
+        vorpal.log('\r\nexaOntTableSchema:')
+        vorpal.log(JSON.stringify(this.exaOntTableColumn))               
     }
 
 
@@ -253,8 +281,6 @@ class ClusterWork {
 
     }
 
-
-
     async getDbRecord(dbType:DBType, current:boolean = true):Promise<TableSchema[]> {
         let tableNameList:string[] = []
         let output:TableSchema[] = []
@@ -263,9 +289,13 @@ class ClusterWork {
                 return [];
             }
             if (dbType === DBType.DBType_AXOS_CARD) {
-                tableNameList.push('axos' + this.currTableNamePrefix)
+                tableNameList.push('axoscard' + this.currTableNamePrefix)
             }else if (dbType === DBType.DBType_EXA_CARD) {
-                tableNameList.push('exa' + this.currTableNamePrefix )
+                tableNameList.push('exacard' + this.currTableNamePrefix )
+            }else if (dbType === DBType.DBType_AXOS_ONT) {
+                tableNameList.push('axosont' + this.currTableNamePrefix )
+            }else if (dbType === DBType.DBType_EXA_ONT) {
+                tableNameList.push('exaont' + this.currTableNamePrefix )
             }
         }else {
             if (dbType === DBType.DBType_AXOS_CARD) {
@@ -277,7 +307,9 @@ class ClusterWork {
 
         for (let ii = 0; ii < tableNameList.length; ii++) {
             let ret = await this.dataStore?.queryAll(tableNameList[ii])
-            output.push(...ret as TableSchema[])
+            if (ret) {
+                output.push(...ret as TableSchema[])
+            }   
         }
 
         return output;
@@ -286,22 +318,33 @@ class ClusterWork {
 
     async addCardDbRecord(cardRes:cardResponse) {
         if (this.currTableNamePrefix === '') {
-            this.currTableNamePrefix = new Date().getTime().toString();
+            let dataStr = Date()
+            //Thu Jun 24 2021 12:36:21 GMT+0800 (GMT+08:00)
+            let regExStr =  /(?:\w+) (\w+) (\d+) (\d+) (\d+):(\d+):(\d+)/
+            let searchRes = regExStr.exec(dataStr)
+            if (searchRes) {
+                this.currTableNamePrefix = '' + searchRes[3] + searchRes[1] + searchRes[2] + searchRes[4] + searchRes[5]
+            }else {
+                logger.error('addCardDbRecord: invalid dataStr')
+                this.currTableNamePrefix =  new Date().getTime().toString()
+            }
+            
             this.isCurrentTableComp = false;
         }
         let tableName=  ''
         if (cardRes.platform === 'axos') {
             tableName = 'axoscard'+ this.currTableNamePrefix;
+            this.axosCardTableName = tableName
 
         }else if (cardRes.platform === 'exa') {
             tableName = 'exacard' + this.currTableNamePrefix;
+            this.exaCardTableName = tableName
         }
 
         if (cardRes.cardInfos.length === 0) {
             logger.error('addCardDbRecord no cardInfo');
             return;
         }
-
 
         let tableSchema:TableSchema = {}  
         tableSchema['address'] = '';
@@ -311,26 +354,130 @@ class ClusterWork {
         }
 
         await this.dataStore?.createDbTable(tableName, tableSchema);
+        tableSchema['address'] = cardRes.address
+        tableSchema['platform'] = cardRes.platform
+        let colunmInfo:string[] = []
+        // Add the header record if not have
+        if (cardRes.platform === 'axos') {
+            if (this.axosCardTableColumn.length == 0) {
+                for (let key in tableSchema) {
+                    this.axosCardTableColumn.push(key)
+                }
+            }
+            colunmInfo = this.axosCardTableColumn
+        }else if (cardRes.platform === 'exa') {
+            if (this.exaCardTableColumn.length == 0) {
+                for (let key in tableSchema) {
+                    this.exaCardTableColumn.push(key)
+                }
+            }
+            colunmInfo = this.exaCardTableColumn
+        }
+
+        
         for (let ii = 0; ii < cardRes.cardInfos.length; ii++) {
+            
+            // make sure the schema match the db struct
+            tableSchema = {}
+            for (let jj = 0; jj < colunmInfo.length; jj++) {
+                tableSchema[colunmInfo[jj]] = ''
+            }
+
+            tableSchema['address'] = cardRes.address
+            tableSchema['platform'] = cardRes.platform
             for (let key in cardRes.cardInfos[ii]) {
-                tableSchema[key] = cardRes.cardInfos[ii][key]
+                 // filter out the unknown column
+                if (colunmInfo.indexOf(key) != -1) {
+                    tableSchema[key] = cardRes.cardInfos[ii][key]
+                }
             }
             await this.dataStore?.insertData(tableName, tableSchema)
         }
 
     }
+
+    async updateAvailableTable() {
+      if (this.axosCardTableName != '') {
+        await this.updateDbDescTable(this.availableDescTableName, DBType.DBType_AXOS_CARD, this.axosCardTableName)
+      }
+     
+      if (this.axosOntTableName != '') {    
+        await this.updateDbDescTable(this.availableDescTableName, DBType.DBType_AXOS_ONT, this.axosOntTableName)
+      }
+      
+      if (this.exaCardTableName != '') {
+        await this.updateDbDescTable(this.availableDescTableName, DBType.DBType_EXA_CARD, this.exaCardTableName)         
+      }
+
+      if (this.exaOntTableName != '') {
+        await this.updateDbDescTable(this.availableDescTableName, DBType.DBType_EXA_ONT, this.exaOntTableName)
+      }
+    }
+    async updateDbDescTable(tableName:string, dbType:number, name:string) {
+        // inpro
+        let tableItem:TableSchema = {'id':"1",
+                                        'axosCard':"",
+                                         'axosOnt':"", 
+                                         'exaCard':"",
+                                        'exaOnt':""}
+
+        let tableCond:TableSchema = {'id':"1"}
+        let tableChg:TableSchema = {
+        }
+        await this.dataStore?.createDbTable(tableName, tableItem)
+        let rows = await this.dataStore?.queryAll(tableName)
+        switch(dbType) {
+            case DBType.DBType_AXOS_CARD:
+                tableChg['axosCard'] = name
+                tableItem['axosCard'] = name
+                break;
+            case DBType.DBType_AXOS_ONT:
+                tableChg['axosOnt'] = name
+                tableItem['axosOnt'] = name
+                break;
+            case DBType.DBType_EXA_CARD:
+                tableChg['exaCard'] = name
+                tableItem['exaCard'] = name
+                break;
+            case DBType.DBType_EXA_ONT:
+                tableChg['exaOnt'] = name
+                tableItem['exaOnt'] = name
+                break;
+            default:
+                break;
+        }
+
+        if (!rows || (rows as []).length ===0) {
+            await this.dataStore?.insertData(tableName, tableItem)
+
+        }else {
+            await this.dataStore?.updateData(tableName, tableChg, tableCond)
+
+        }
+    }
     
     async addOntDbRecord(ontRes:ontResponse) {
         if (this.currTableNamePrefix === '') {
-            this.currTableNamePrefix = new Date().getTime().toString();
+            let dataStr = Date()
+            //Thu Jun 24 2021 12:36:21 GMT+0800 (GMT+08:00)
+            let regExStr =  /(?:\w+) (\w+) (\d+) (\d+) (\d+):(\d+):(\d+)/
+            let searchRes = regExStr.exec(dataStr)
+            if (searchRes) {
+                this.currTableNamePrefix = `${searchRes[3]}-${searchRes[1]}-${searchRes[2]}-${searchRes[4]}-${searchRes[5]}`
+            }else {
+                logger.error('addCardDbRecord: invalid dataStr')
+                this.currTableNamePrefix =  new Date().getTime().toString()
+            }
             this.isCurrentTableComp = false;
         }
         let tableName=  ''
         if (ontRes.platform === 'axos') {
             tableName = 'axosont'+ this.currTableNamePrefix;
+            this.axosOntTableName = tableName
 
         }else if (ontRes.platform === 'exa') {
             tableName = 'exaont' + this.currTableNamePrefix;
+            this.exaOntTableName = tableName
         }
 
         if (ontRes.ontInfos.length === 0) {
@@ -345,11 +492,41 @@ class ClusterWork {
         for (let key in ontRes.ontInfos[0]) {
             tableSchema[key] = ''
         }
+        tableSchema['address'] = ontRes.address
+        tableSchema['platform'] = ontRes.platform
+
+        let colunmInfo:string[] = []
+        // Add the header record if not have
+        if (ontRes.platform === 'axos') {
+            if (this.axosOntTableColumn.length == 0) {
+                for (let key in tableSchema) {
+                    this.axosOntTableColumn.push(key)
+                }
+            }
+            colunmInfo = this.axosOntTableColumn
+        }else if (ontRes.platform === 'exa') {
+            if (this.exaOntTableColumn.length == 0) {
+                for (let key in tableSchema) {
+                    this.exaOntTableColumn.push(key)
+                }
+            }
+            colunmInfo = this.exaOntTableColumn
+        }
+
 
         await this.dataStore?.createDbTable(tableName, tableSchema);
         for (let ii = 0; ii < ontRes.ontInfos.length; ii++) {
+            // make sure schema matches the DB struct
+            tableSchema = {}
+            for (let jj = 0; jj < colunmInfo.length; jj++) {
+                tableSchema[colunmInfo[jj]] = ''
+            }
+            tableSchema['address'] = ontRes.address
+            tableSchema['platform'] = ontRes.platform
             for (let key in ontRes.ontInfos[ii]) {
-                tableSchema[key] = ontRes.ontInfos[ii][key]
+                if (colunmInfo.indexOf(key) != -1) {
+                    tableSchema[key] = ontRes.ontInfos[ii][key]
+                }
             }
             await this.dataStore?.insertData(tableName, tableSchema)
         }
@@ -372,7 +549,12 @@ class ClusterWork {
 
         for (let ii = 0; ii < numCores; ii++) {
             let worker = cluster.fork();
-            let workerInfo = { worker: worker } as WorkInfo;
+            let workerInfo: WorkInfo = {
+                worker: worker,
+                hasTask: false,
+                handleIp:undefined
+            }
+            
             this.workerList.push(workerInfo)
         }
 
@@ -393,6 +575,8 @@ class ClusterWork {
                             cmd: MessageID.MSG_PATROL_REQ,
                             content: ipRange
                         })
+                        that.workerList[index].hasTask = true
+                        that.workerList[index].handleIp = ipRange
                     } else {
                         logger.error('Master: online no left IP for the work')
 
@@ -420,8 +604,21 @@ class ClusterWork {
                             cmd: MessageID.MSG_PATROL_REQ,
                             content: ipRange
                         })
+                        that.workerList[index].handleIp = ipRange
                     } else {
                         logger.error('Master: no left IP for the work')
+                        that.workerList[index].hasTask = false
+                        let allFinish = true
+                        for (let ii = 0; ii < that.workerList.length; ii++) {
+                            if (that.workerList[ii].hasTask) {
+                                allFinish = false
+                                break
+                            }
+                        }
+                        if (allFinish) {
+                            logger.error('=========ALl work done==========')
+                            that.updateAvailableTable()
+                        }
                     }
                 }
                     break;
@@ -511,6 +708,8 @@ function setupVorpal(vorpal: Vorpal, clusterMaster: ClusterWork) {
                 
             } else {
                 await clusterMaster.showCardDBRecord(DBType.DBType_AXOS_CARD, vorpal, 'all')
+                await clusterMaster.showCardDBRecord(DBType.DBType_EXA_CARD, vorpal, 'all')
+                
             }
 
         })
@@ -530,6 +729,8 @@ function setupVorpal(vorpal: Vorpal, clusterMaster: ClusterWork) {
                 
             } else {
                 await clusterMaster.showOntDBRecord(DBType.DBType_AXOS_ONT, vorpal, 'all')
+                await clusterMaster.showOntDBRecord(DBType.DBType_EXA_ONT, vorpal, 'all')
+                
             }
 
         })
@@ -549,8 +750,8 @@ function setupVorpal(vorpal: Vorpal, clusterMaster: ClusterWork) {
         let ipRange: IpPrefixInfo = {
             ipPrefix: '10.245',
             subLenth: 16,
-            start: 2,
-            end: 255,
+            start: 20,
+            end: 25,
         }
         const vorpal = new Vorpal();
         setupVorpal(vorpal, labPatrolCluster)

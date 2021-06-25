@@ -1,6 +1,6 @@
 import { InvestigateClient, AliveFind } from './Connectivity'
 import logger from "./logger"
-import { AXOSCard } from "./AxosCard"
+import { AXOSCard } from "./AXOSCard"
 import * as fs from "fs"
 import * as path from "path"
 import { E7Card } from './E7Card'

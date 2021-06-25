@@ -40,11 +40,12 @@ export class DataStore {
                 this.db.run(dbDefineStr, (error) => {
                     if (error) {
                         logger.error('create table' + error)
+                        resovle(-1)
                     }else {
                         logger.info('createDbTable success')
-    
+                        resovle(0)
                     }
-                    resovle(0)
+                    
                 })
             }
 
@@ -116,6 +117,34 @@ export class DataStore {
 
     }
 
+    async updateData(tableName:string, tableData:TableSchema, cond:TableSchema) {
+        let sql = `UPDATE ${tableName}  SET `
+        let valueList:string[] = []
+        for (let key in tableData) {
+            sql += '[' + key + ']'+ `=?, `
+            valueList.push(tableData[key])
+        }
+        let lastIdx = sql.lastIndexOf(', ')
+        sql = sql.slice(0, lastIdx)
+
+        sql += ' WHERE'
+        for (let key in cond) {
+            sql += ` ` + `[` + key + `]` +`= ?`
+            valueList.push(cond[key])
+        }
+        logger.info(sql)
+        return new Promise((resolve)=>{
+            this.db?.run(sql, valueList, (error)=>{
+                if (error) {
+                    logger.error('updateData ' + error)
+                }
+                resolve(0)
+            })
+
+        })       
+        
+    }
+
     async deleteData(tableName:string, tableData:TableSchema) {
         let sql = `DELETE from ${tableName} WHERE `
         let values:string[] = []
@@ -147,15 +176,18 @@ if (__filename === require.main?.filename) {
         let dbStore = new DataStore()
         let dbSchema: TableSchema = {
             "id": '',
-            'name is a': ''
+            'name is a': '',
+            "age":"100"
         }
         let data: TableSchema = {
             "id": '123',
-            'name is a': 'SA'
+            'name is a': 'SA',
+            'age':"200"
         }
         let data1: TableSchema = {
             "id": '1234',
-            'name is a': 'SAA'
+            'name is a': 'SAA',
+            'age':'150'
         }
         await dbStore.createDb(':memory:')
         await dbStore.createDbTable('member', dbSchema)
@@ -169,7 +201,22 @@ if (__filename === require.main?.filename) {
 
         await dbStore.deleteData('member', data1)
         await dbStore.queryAll('member')
+        await dbStore.insertData('member', data1)
+        await dbStore.queryAll('member')
+        let datacond:TableSchema = {
+            "id":"1234",
+        }
+        let dataChg:TableSchema = {
+            "id":"1234",
+            "name is a":"changed"
+        }
+        await dbStore.updateData('member', dataChg, datacond)
+        await dbStore.queryAll('member')
+
+        await dbStore.createDb('./labpatrol.db')
+        let rows = await dbStore.queryAll('tbAvailableDesc')
+        console.log(rows)
         // await dbStore.deleteAllWithCond('member', data1);
         // await dbStore.queryAll('member')
-    })()
+    })()    
 }
