@@ -2,6 +2,9 @@ import { InvestigateClient } from "./Connectivity"
 import logger from "./logger"
 import { CliResFormatMode } from "./ResultSplit"
 import { LabPatroType, LabPatroResult, LabPatroAny } from "./LabPatrolPub"
+type OntOut = {
+    [attr: string]: string,
+}
 export class AXOSCard {
     invesClient: InvestigateClient | undefined
 
@@ -30,11 +33,17 @@ export class AXOSCard {
         this.invesClient?.disconnect();
     }
 
-
-    async checkDiscoverOnt(ipAddr: string): Promise<number | any[]> {
-        type OntOut = {
-            [attr: string]: string,
+    filterSimOnt(ontInfo:OntOut):boolean {
+        for (let key in ontInfo) {
+            if (key === 'CLEI') {
+                if (ontInfo[key].indexOf('SIM') != -1) {
+                    return true
+                }
+            }
         }
+        return false
+    }
+    async checkDiscoverOnt(ipAddr: string): Promise<number | any[]> {
         try {
             let rc: number = -1;
             if (this.invesClient === undefined) {
@@ -65,7 +74,7 @@ export class AXOSCard {
                 for (let jj = 0; jj < disOntOut[ii].childs.length; jj++) {
                     ontCombine[disOntOut[ii].childs[jj].name] = disOntOut[ii].childs[jj].value;
                 }
-                if (Object.keys(ontCombine).length > 0) {
+                if (Object.keys(ontCombine).length > 0 && !this.filterSimOnt(ontCombine)) {
                     ontList.push(ontCombine)
                 }
             }
@@ -99,6 +108,11 @@ export class AXOSCard {
             await this.invesClient.sendCommand('paginate false')
             // await invesClient.sendCommand('show running')
             let cardResult = await this.invesClient.sendCommand('show card')
+            if (!cardResult || cardResult === -1) {
+                logger.error('AXOScard checkCard ' + ipAddr + 'no show card ')
+                return []
+            }
+
             logger.info('\r\n' + cardResult)
             // invesClient.resultSplit.setOutput(cardResult)
             this.invesClient.resultSplit.splitResult(cardResult, CliResFormatMode.CliResFormatTable)
@@ -106,7 +120,10 @@ export class AXOSCard {
             let showCardRes = this.invesClient.resultSplit.getTableFormatOut()
 
             cardResult = await this.invesClient.sendCommand('show version')
-
+            if (!cardResult || cardResult === -1) {
+                logger.error('AXOScard checkCard ' + ipAddr + 'no show version ')
+                return []
+            }
             this.invesClient.resultSplit.splitResult(cardResult, CliResFormatMode.CliResFormatLine)
 
             let showVerRes = this.invesClient.resultSplit.getLineFormatOut()

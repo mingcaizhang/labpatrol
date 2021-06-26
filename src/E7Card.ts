@@ -2,6 +2,9 @@ import { TelnetClient } from "./Connectivity"
 import logger from "./logger"
 import { CliResFormatMode } from "./ResultSplit"
 import { LabPatroResult, LabPatroAny, LabPatroType } from "./LabPatrolPub"
+type OntOut = {
+    [attr: string]: string,
+}
 export class E7Card {
     invesClient: TelnetClient | undefined;
     constructor() {
@@ -23,6 +26,16 @@ export class E7Card {
         this.invesClient?.disconnect();
     }
 
+    filterSimOnt(ontInfo:OntOut):boolean {
+        for (let key in ontInfo) {
+            if (key === 'CLEI') {
+                if (ontInfo[key].indexOf('Calix SimO') != -1) {
+                    return true
+                }
+            }
+        }
+        return false
+    }    
     async checkDiscoverOnt(ipAddr: string): Promise<number | any[]> {
         let rc = -1
         type OntOut = {
@@ -56,10 +69,9 @@ export class E7Card {
                         ontCombine[disOntRes[ii].childs[jj].name] = disOntRes[ii].childs[jj].value
                     }
                 }
-                if (Object.keys(ontCombine).length > 0) {
+                if (Object.keys(ontCombine).length > 0 && !this.filterSimOnt(ontCombine)) {
                     ontList.push(ontCombine)
                 }
-    
             }
             // (JSON.stringify(ontList))
             return ontList
@@ -87,7 +99,10 @@ export class E7Card {
                 return -1
             }
             let cardResult = await this.invesClient.sendCommand('show card')
-
+            if (!cardResult || cardResult === -1) {
+                logger.error('E7card checkCard ' + ipAddr + 'no show card ')
+                return []
+            }
             // invesClient.resultSplit.setOutput(cardResult)
             this.invesClient.resultSplit.splitResult(cardResult, CliResFormatMode.CliResFormatTableWithSeparator)
             let showCardRes = this.invesClient.resultSplit.getTableFormatOut()
@@ -109,6 +124,10 @@ export class E7Card {
 
 
             let showVerRes = await this.invesClient.sendCommand('show version')
+            if (!showVerRes || showVerRes === -1) {
+                logger.error('E7card checkCard ' + ipAddr + 'no show version ')
+                return []
+            }            
             this.invesClient.resultSplit.splitResult(showVerRes, CliResFormatMode.CliResFormatTableWithSeparator)
             let verResOut = this.invesClient.resultSplit.getTableFormatOut()
 
@@ -179,7 +198,7 @@ export class E7Card {
 if (__filename === require.main?.filename) {
     (async () => {
         // await E7Card.checkCard('10.245.69.179')
-        let res = await E7Card.doPatrolWork('10.245.24.101', LabPatroType.LabPatrolType_E7Card | LabPatroType.LabPatrolType_ONT)
+        let res = await E7Card.doPatrolWork('10.245.34.188', LabPatroType.LabPatrolType_E7Card | LabPatroType.LabPatrolType_ONT)
         if (res != -1) {
             let conRes = res as unknown as LabPatroResult
             console.log(JSON.stringify(conRes.cardInfo))
