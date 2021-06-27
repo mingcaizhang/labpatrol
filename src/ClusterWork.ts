@@ -2,7 +2,7 @@ import * as cluster from 'cluster'
 import { Worker } from 'cluster';
 import * as events from 'events'
 import { BunchWork, cardResponse, ontResponse} from "./BunchWork"
-import { IpPrefixInfo, LabPatroType } from './LabPatrolPub'
+import { IpPrefixInfo, LabPatroType, sleepSecond } from './LabPatrolPub'
 import logger from './logger';
 import Vorpal = require('vorpal');
 // var Vorpal = require("vantage")();
@@ -711,7 +711,13 @@ class ClusterWork {
         process.on('message', async (message: MessageInfo) => {
             if (message.cmd & MessageID.MSG_PATROL_REQ) {
                 bunchWork.setupWork(message.content as IpPrefixInfo, LabPatroType.LabPatrolType_AXOSCard, workId.id)
-                await bunchWork.processWork();
+                try {
+                    await Promise.race([bunchWork.processWork(), sleepSecond(3600)])
+                }catch(e) {
+                    logger.error(`eror handle worker ${workId.id}`)
+                    logger.error(e)
+                }
+
                 let res = bunchWork.getCardBunchRes();
                 (<any>process).send({
                     cmd: MessageID.MSG_CARD_PATROL_RPL,
@@ -802,6 +808,10 @@ function setupVorpal(vorpal: Vorpal, clusterMaster: ClusterWork) {
     vorpal.command('showstate', '显示当前状态').action(async (args)=>{
         clusterMaster.showState(vorpal)
 
+    })
+
+    vorpal.command('forceDBUpdate', 'forceDBUpdate').action(async (args)=>{
+        await clusterMaster.updateAvailableTable()
     })
 
     vorpal

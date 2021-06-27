@@ -40,3 +40,21 @@ export function getAxosCard():string[] {
    // ['address', 'platform',  'cardPosition',  'PROVISION TYPE',  'CARD STATE',  'CARD TYPE'                                      'MODEL'       'SERIAL NO'     'SOFTWARE VERSION'  'image-partition'  'full-release-version'  'live-release-version'  'image-type'   'patches'     'features'                            distro                                  schema      timestamp              details           
     return []
 }
+
+export function sleepMs(timems:number) {
+    return new Promise((resolve)=>{
+        setTimeout(()=>{
+            resolve(0)
+        }, timems)
+    })
+
+}
+
+export function sleepSecond(timems:number) {
+    return new Promise((resolve)=>{
+        setTimeout(()=>{
+            resolve(0)
+        }, timems*1000)
+    })
+
+}
