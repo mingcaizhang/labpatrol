@@ -23,6 +23,7 @@
     "ssh2": "^0.8.9",
     "telnet-client": "^1.4.9",
     "telnet-stream": "^1.0.5",
+    "vantage": "^1.7.0",
     "vorpal": "^1.12.0"
   }
 }

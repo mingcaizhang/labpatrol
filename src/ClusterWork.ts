@@ -5,6 +5,7 @@ import { BunchWork, cardResponse, ontResponse} from "./BunchWork"
 import { IpPrefixInfo, LabPatroType } from './LabPatrolPub'
 import logger from './logger';
 import Vorpal = require('vorpal');
+// var Vorpal = require("vantage")();
 import {DataStore, TableSchema} from './DataStore'
 
 logger.setLogLevel('std', 'error')
@@ -48,6 +49,13 @@ interface PatrolReqInfo {
     ipRange: string;
 }
 
+interface UsedDBTableName {
+    axosCardTableName:string,
+    axosOntTableName:string,
+    exaCardTableName:string,
+    exaOntTableName:string
+}
+
 class MessageInfo {
     cmd: number;
     content: any;
@@ -66,8 +74,6 @@ class ClusterWork {
     cardResponseList: cardResponse[] = []
     ontResponseList:ontResponse[] = []
     currTableNamePrefix:string=''
-    histcardTableName:string[]=[]
-    isCurrentTableComp:boolean = false;
     cardFilterCol: string[] = ['cardPosition',
         'CARD STATE',
         'MODEL',
@@ -84,6 +90,7 @@ class ClusterWork {
     axosOntTableColumn:string[] = []
     exaCardTableColumn:string[] =[]
     exaOntTableColumn:string[]= []
+    hisDBName:UsedDBTableName[] =[]
     constructor() {
 
     }
@@ -103,7 +110,11 @@ class ClusterWork {
         vorpal.log('\r\nexaCardTableSchema:')
         vorpal.log(JSON.stringify(this.exaCardTableColumn))
         vorpal.log('\r\nexaOntTableSchema:')
-        vorpal.log(JSON.stringify(this.exaOntTableColumn))               
+        vorpal.log(JSON.stringify(this.exaOntTableColumn))        
+        
+        vorpal.log('history record:')
+        vorpal.log(JSON.stringify(this.hisDBName))
+        
     }
 
 
@@ -329,7 +340,7 @@ class ClusterWork {
                 this.currTableNamePrefix =  new Date().getTime().toString()
             }
             
-            this.isCurrentTableComp = false;
+            
         }
         let tableName=  ''
         if (cardRes.platform === 'axos') {
@@ -396,6 +407,59 @@ class ClusterWork {
 
     }
 
+    async reStartWork():Promise<number> {
+        for (let ii = 0; ii < this.workerList.length; ii++) {
+            if (this.workerList[ii].hasTask === true) {
+                logger.error(`reStartWork worker ${ii+1} still has work to handle`)
+                return -1
+            }
+        }
+
+        logger.info(`== reStartWork ====`)
+
+        if (this.ipRange) {
+            this.ipL1 = this.ipRange.start;
+        }
+
+
+        this.ipL2 = 0;
+        this.cardResponseList = []
+        this.ontResponseList = []
+        this.currTableNamePrefix =''
+
+        let dbHist:UsedDBTableName = {
+            axosCardTableName:this.axosCardTableName,
+            axosOntTableName:this.axosOntTableName,
+            exaCardTableName:this.exaCardTableName,
+            exaOntTableName:this.exaOntTableName
+        }
+        this.hisDBName.push(dbHist)
+
+        this.axosCardTableName =''
+        this.axosOntTableName = ''
+        this.exaCardTableName = ''
+        this.exaOntTableName= ''
+        this.axosCardTableColumn = []
+        this.axosOntTableColumn = []
+        this.exaCardTableColumn =[]
+        this.exaOntTableColumn = []
+
+        for (let ii = 0; ii < this.workerList.length; ii++) {
+            let ipRange = this.getNextIpRange();
+            if (ipRange != undefined) {
+                this.workerList[ii].worker.send({
+                    cmd: MessageID.MSG_PATROL_REQ,
+                    content: ipRange
+                })
+                this.workerList[ii].hasTask = true
+                this.workerList[ii].handleIp = ipRange
+            } else {
+                logger.error('Master: online no left IP for the work')
+
+            }       
+        }
+        return 0
+    }
     async updateAvailableTable() {
       if (this.axosCardTableName != '') {
         await this.updateDbDescTable(this.availableDescTableName, DBType.DBType_AXOS_CARD, this.axosCardTableName)
@@ -468,7 +532,6 @@ class ClusterWork {
                 logger.error('addCardDbRecord: invalid dataStr')
                 this.currTableNamePrefix =  new Date().getTime().toString()
             }
-            this.isCurrentTableComp = false;
         }
         let tableName=  ''
         if (ontRes.platform === 'axos') {
@@ -617,7 +680,8 @@ class ClusterWork {
                         }
                         if (allFinish) {
                             logger.error('=========ALl work done==========')
-                            that.updateAvailableTable()
+                            await that.updateAvailableTable()
+                            await that.reStartWork()
                         }
                     }
                 }
@@ -743,6 +807,10 @@ function setupVorpal(vorpal: Vorpal, clusterMaster: ClusterWork) {
     vorpal
         .delimiter('myapp$')
         .show();
+    
+    let abc = vorpal as unknown as any
+    abc.listen(8080)
+    
 }
 (async () => {
     let labPatrolCluster = new ClusterWork()
@@ -753,7 +821,7 @@ function setupVorpal(vorpal: Vorpal, clusterMaster: ClusterWork) {
             start: 2,
             end: 255,
         }
-        const vorpal = new Vorpal();
+        const vorpal = require('vantage')()
         setupVorpal(vorpal, labPatrolCluster)
         labPatrolCluster.setupWokerProcess(ipRange);
 
