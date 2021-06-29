@@ -35,6 +35,7 @@ export class BunchWork {
     cardBunchRes:cardResponse[] =[]
     ontBunchRes:ontResponse[] =[]
     workerID:number = -1;
+    excludeIps:string[] = []
     constructor() {
 
     }
@@ -49,11 +50,12 @@ export class BunchWork {
 
 
 
-    setupWork(ipRange:IpPrefixInfo, patrolType:number, workerID:number) {
+    setupWork(ipRange:IpPrefixInfo, patrolType:number, workerID:number, excludeIps:string[]) {
     // TODO:　
         this.ipRange = ipRange;
         this.patrolType = patrolType;
         this.workerID = workerID;
+        this.excludeIps = excludeIps;
     }
 
     async activeIpFetch() {
@@ -62,6 +64,13 @@ export class BunchWork {
         if (this.ipRange) {
             aliveFind.addPrefix(this.ipRange.ipPrefix, 24, this.ipRange.start, this.ipRange.end);
             this.activeIpList = await aliveFind.AliveDetect();
+            for (let ii = 0; ii < this.excludeIps.length; ii++) {
+                let idx;
+                idx = this.activeIpList.indexOf(this.excludeIps[ii])
+                if (idx != -1) {
+                    this.activeIpList.splice(idx, 1)
+                }
+            }
         }
     }
 

@@ -74,7 +74,7 @@ export class AXOSCard {
                 for (let jj = 0; jj < disOntOut[ii].childs.length; jj++) {
                     ontCombine[disOntOut[ii].childs[jj].name] = disOntOut[ii].childs[jj].value;
                 }
-                if (Object.keys(ontCombine).length > 0 && !this.filterSimOnt(ontCombine)) {
+                if (Object.keys(ontCombine).length > 0 && this.filterSimOnt(ontCombine) != true) {
                     ontList.push(ontCombine)
                 }
             }
@@ -205,7 +205,7 @@ export class AXOSCard {
 if (__filename === require.main?.filename) {
     (async () => {
         // await E7Card.checkCard('10.245.69.179')
-        let res = await AXOSCard.doPatrolWork('10.245.34.156', LabPatroType.LabPatrolType_AXOSCard | LabPatroType.LabPatrolType_ONT)
+        let res = await AXOSCard.doPatrolWork('10.245.29.180', LabPatroType.LabPatrolType_AXOSCard | LabPatroType.LabPatrolType_ONT)
         if (res != -1) {
             let conRes = res as unknown as LabPatroResult
             console.log(JSON.stringify(conRes.cardInfo))

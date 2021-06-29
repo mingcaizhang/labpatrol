@@ -59,6 +59,7 @@ interface UsedDBTableName {
 class MessageInfo {
     cmd: number;
     content: any;
+    excludeIps:string[] =[]
     constructor() {
         this.cmd = 0
         this.content = undefined
@@ -91,6 +92,8 @@ class ClusterWork {
     exaCardTableColumn:string[] =[]
     exaOntTableColumn:string[]= []
     hisDBName:UsedDBTableName[] =[]
+    excludeIps:string[]= []
+    sleepTimeforNext:number = 7200 // 7200 seconds
     constructor() {
 
     }
@@ -407,12 +410,17 @@ class ClusterWork {
 
     }
 
-    async reStartWork():Promise<number> {
+    async reStartWork(force:boolean = false):Promise<number> {
         for (let ii = 0; ii < this.workerList.length; ii++) {
             if (this.workerList[ii].hasTask === true) {
                 logger.error(`reStartWork worker ${ii+1} still has work to handle`)
                 return -1
             }
+        }
+
+        if (force === false) {
+            logger.error(`begin wait ${this.sleepTimeforNext} seconds for the next time work`)
+            await sleepSecond(this.sleepTimeforNext);
         }
 
         logger.info(`== reStartWork ====`)
@@ -449,8 +457,9 @@ class ClusterWork {
             if (ipRange != undefined) {
                 this.workerList[ii].worker.send({
                     cmd: MessageID.MSG_PATROL_REQ,
-                    content: ipRange
-                })
+                    content: ipRange,
+                    excludeIps:this.excludeIps
+                } as MessageInfo)
                 this.workerList[ii].hasTask = true
                 this.workerList[ii].handleIp = ipRange
             } else {
@@ -595,11 +604,11 @@ class ClusterWork {
         }
 
     }    
-    async setupWokerProcess(ipRange: IpPrefixInfo) {
+    async setupWokerProcess(ipRange: IpPrefixInfo, ipFilter:string[]) {
         await this.initMaster();
         let numCores = require('os').cpus().length;
         let that = this;
-
+        this.excludeIps = ipFilter
 
 
         if (ipRange.subLenth != 16 && ipRange.subLenth != 24) {
@@ -636,8 +645,9 @@ class ClusterWork {
                     if (ipRange != undefined) {
                         that.workerList[index].worker.send({
                             cmd: MessageID.MSG_PATROL_REQ,
-                            content: ipRange
-                        })
+                            content: ipRange,
+                            excludeIps: that.excludeIps
+                        } as MessageInfo)
                         that.workerList[index].hasTask = true
                         that.workerList[index].handleIp = ipRange
                     } else {
@@ -665,8 +675,9 @@ class ClusterWork {
                     if (ipRange != undefined) {
                         that.workerList[index].worker.send({
                             cmd: MessageID.MSG_PATROL_REQ,
-                            content: ipRange
-                        })
+                            content: ipRange,
+                            excludeIps: that.excludeIps
+                        } as MessageInfo)
                         that.workerList[index].handleIp = ipRange
                     } else {
                         logger.error('Master: no left IP for the work')
@@ -710,7 +721,7 @@ class ClusterWork {
         let bunchWork = new BunchWork()
         process.on('message', async (message: MessageInfo) => {
             if (message.cmd & MessageID.MSG_PATROL_REQ) {
-                bunchWork.setupWork(message.content as IpPrefixInfo, LabPatroType.LabPatrolType_AXOSCard, workId.id)
+                bunchWork.setupWork(message.content as IpPrefixInfo, LabPatroType.LabPatrolType_AXOSCard, workId.id, message.excludeIps)
                 try {
                     await Promise.race([bunchWork.processWork(), sleepSecond(3600)])
                 }catch(e) {
@@ -784,7 +795,7 @@ function setupVorpal(vorpal: Vorpal, clusterMaster: ClusterWork) {
 
         })
         vorpal
-        .command('showOntdb', '显示获取到的')
+        .command('showontdb', '显示获取到的')
         .option('-m, --mode <mode>', '模式.', ['all', 'count', 'brief'])
         .option('-t, --type <type>', '类型.', ['axos', 'exa'])
         .action(async (args) => {
@@ -810,16 +821,26 @@ function setupVorpal(vorpal: Vorpal, clusterMaster: ClusterWork) {
 
     })
 
-    vorpal.command('forceDBUpdate', 'forceDBUpdate').action(async (args)=>{
+    vorpal.command('forcedbupdate', 'forcedbupdate').action(async (args)=>{
         await clusterMaster.updateAvailableTable()
+    })
+
+    vorpal.command('timewait', 'timewait')
+    .option('-s --set <value>', 'wait value')
+    .action(async (args)=>{
+        let setvalue = (args.options.set) ? args.options.set : undefined;
+        if (setvalue) {
+            let value = parseInt(setvalue)
+            if (value) {
+                clusterMaster.sleepTimeforNext = value
+            }
+        }
+        vorpal.log(`timeWait: ${clusterMaster.sleepTimeforNext}`)
     })
 
     vorpal
         .delimiter('myapp$')
         .show();
-    
-    let abc = vorpal as unknown as any
-    abc.listen(8080)
     
 }
 (async () => {
@@ -832,8 +853,9 @@ function setupVorpal(vorpal: Vorpal, clusterMaster: ClusterWork) {
             end: 255,
         }
         const vorpal = require('vantage')()
+        const cfg = require('./config.json')
         setupVorpal(vorpal, labPatrolCluster)
-        labPatrolCluster.setupWokerProcess(ipRange);
+        labPatrolCluster.setupWokerProcess(ipRange, cfg.filterIp);
 
     } else {
         labPatrolCluster.setupWokerExecute(cluster.worker);
