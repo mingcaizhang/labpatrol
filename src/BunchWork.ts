@@ -60,7 +60,6 @@ export class BunchWork {
 
     async activeIpFetch() {
         let aliveFind = new AliveFind();
-        let actList = await aliveFind.AliveDetect()
         if (this.ipRange) {
             aliveFind.addPrefix(this.ipRange.ipPrefix, 24, this.ipRange.start, this.ipRange.end);
             this.activeIpList = await aliveFind.AliveDetect();
@@ -437,6 +436,26 @@ export class BunchWork {
         let ipList:string[] = []
         this.cardBunchRes = []
         this.ontBunchRes = []
+
+        let matchStr = /\d+.\d+.\d+.(\d+)/
+        // check if has subnet excludes 
+        for (let ii = 0; ii < this.excludeIps.length; ii++) {
+            let matchRes = matchStr.exec(this.excludeIps[ii])
+            // this is a subnet match has format 'xx.xx.xx.0'
+            if (matchRes && matchRes[1] && matchRes[1] === '0') {
+                let subStr = this.excludeIps[ii].substr(0, this.excludeIps[ii].length -3)
+                // subnet same , return directly
+                if (this.ipRange?.ipPrefix.indexOf(subStr) != -1) {
+                    logger.info(`ip prefix ${this.ipRange?.ipPrefix} match excluds`)
+                    return 
+                }
+
+            }
+
+        }
+
+
+
         await this.processAxosWork(ipList, LabPatroType.LabPatrolType_AXOSCard |LabPatroType.LabPatrolType_ONT);
         for (let ii = 0; ii < this.activeIpList.length; ii++) {
             if (this.axosIpList.indexOf(this.activeIpList[ii]) === -1) {
@@ -448,4 +467,36 @@ export class BunchWork {
     }
 
 
+}
+
+if (__filename === require.main?.filename) {
+    (async () => {
+        // await E7Card.checkCard('10.245.69.179')
+        let bunchWork = new BunchWork()
+        let ipPrefix:IpPrefixInfo = {
+            ipPrefix: '10.245.66',
+            subLenth:24,
+            start: 1,
+            end: 2     
+        }
+        let excludeIps = ["10.245.29.180",
+        "10.245.29.190",
+        "10.245.30.184",
+        "10.245.29.194",
+        "10.245.106.67",
+        "10.245.106.76",
+        "10.245.106.66",
+        "10.245.29.210",
+        "10.245.29.196",
+        "10.245.29.181",
+        "10.245.29.182",
+        "10.245.29.192",
+        "10.245.29.183",
+        "10.245.30.185",
+        "10.245.66.0",
+        "10.245.110.0",
+        "10.245.111.0"]
+        bunchWork.setupWork(ipPrefix, LabPatroType.LabPatrolType_AXOSCard, 1, excludeIps)
+        await bunchWork.processWork()
+    })()
 }

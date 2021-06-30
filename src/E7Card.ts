@@ -188,7 +188,7 @@ export class E7Card {
             ontInfo: ontInfo,
             cardInfo: cardInfo
         }
-
+        await e7Card.disconnect()
         return resInfo;
     }
 
