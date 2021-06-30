@@ -443,7 +443,7 @@ export class BunchWork {
             let matchRes = matchStr.exec(this.excludeIps[ii])
             // this is a subnet match has format 'xx.xx.xx.0'
             if (matchRes && matchRes[1] && matchRes[1] === '0') {
-                let subStr = this.excludeIps[ii].substr(0, this.excludeIps[ii].length -3)
+                let subStr = this.excludeIps[ii].substr(0, this.excludeIps[ii].length -2)
                 // subnet same , return directly
                 if (this.ipRange?.ipPrefix.indexOf(subStr) != -1) {
                     logger.info(`ip prefix ${this.ipRange?.ipPrefix} match excluds`)
@@ -474,7 +474,7 @@ if (__filename === require.main?.filename) {
         // await E7Card.checkCard('10.245.69.179')
         let bunchWork = new BunchWork()
         let ipPrefix:IpPrefixInfo = {
-            ipPrefix: '10.245.66',
+            ipPrefix: '10.245.6',
             subLenth:24,
             start: 1,
             end: 2     
