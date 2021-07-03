@@ -27,6 +27,44 @@ export class DataStore {
 
     }
 
+    async dropDbTable(tableName:string) {
+        let dbDefineStr = `DROP TABLE ${tableName}`
+        return new Promise((resovle)=>{
+            if (this.db) {
+                this.db.run(dbDefineStr, (error) => {
+                    if (error) {
+                        logger.error('delete table' + error)
+                        resovle(-1)
+                    }else {
+                        logger.info('delete success')
+                        resovle(0)
+                    }
+                    
+                })
+            }
+
+        })       
+    }
+ 
+    async addTableColumn(tableName:string,  columnName:string) {
+
+        let dbDefineStr = `ALTER TABLE ${tableName} ADD COLUMN ${columnName}`
+        return new Promise((resovle)=>{
+            if (this.db) {
+                this.db.run(dbDefineStr, (error) => {
+                    if (error) {
+                        logger.error('add column' + error)
+                        resovle(-1)
+                    }else {
+                        logger.info('add column success')
+                        resovle(0)
+                    }
+                })
+            }
+        })           
+
+
+    }
     async createDbTable(tableName: string, tableSchema: TableSchema) {
         let dbDefineStr = 'CREATE TABLE ' + 'IF NOT EXISTS ' + tableName + ' ('
         for (let key in tableSchema) {
@@ -50,8 +88,9 @@ export class DataStore {
             }
 
         })
-
     }
+
+
 
     async insertData(tableName: string, tableData: TableSchema) {
 
@@ -216,6 +255,13 @@ if (__filename === require.main?.filename) {
         await dbStore.createDb('./labpatrol.db')
         let rows = await dbStore.queryAll('tbAvailableDesc')
         console.log(rows)
+         rows = await dbStore.queryAll('axoscard2021Jun260646')
+        console.log(rows)
+        await dbStore.dropDbTable('axoscard2021Jun260646')
+        rows = await dbStore.queryAll('axoscard2021Jun260646')
+        console.log(rows)
+
+
         // await dbStore.deleteAllWithCond('member', data1);
         // await dbStore.queryAll('member')
     })()    

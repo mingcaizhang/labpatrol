@@ -23,7 +23,12 @@ export interface ontResponse {
     platform: string;
     address: string;
     ontInfos: commonInfo[];  
+}
 
+export interface moduleResponse {
+    platform: string;
+    address: string;
+    moduleInfos: commonInfo[];
 }
 
 export class BunchWork {
@@ -34,6 +39,7 @@ export class BunchWork {
     patrolType:number = 0;
     cardBunchRes:cardResponse[] =[]
     ontBunchRes:ontResponse[] =[]
+    moduleBunchRes:moduleResponse[] = []
     workerID:number = -1;
     excludeIps:string[] = []
     constructor() {
@@ -48,6 +54,9 @@ export class BunchWork {
         return this.ontBunchRes;
     }
 
+    getModuleBunchRes():moduleResponse[] {
+        return this.moduleBunchRes;
+    }
 
 
     setupWork(ipRange:IpPrefixInfo, patrolType:number, workerID:number, excludeIps:string[]) {
@@ -341,6 +350,9 @@ export class BunchWork {
                         let ontRes:ontResponse =  {address: checkIpList[zz], platform:'axos',
                             ontInfos:conRes.ontInfo as unknown as commonInfo[]}
                         this.ontBunchRes.push(ontRes)
+                        let moduleRes:moduleResponse =  {address: checkIpList[zz], platform:'axos',
+                        moduleInfos:conRes.moduleInfo as unknown as commonInfo[]}
+                        this.moduleBunchRes.push(moduleRes)
                         this.axosIpList.push(checkIpList[zz]);
                     }
                 }               
@@ -405,6 +417,9 @@ export class BunchWork {
                         let ontRes:ontResponse =  {address: checkIpList[zz], platform:'exa',
                             ontInfos:conRes.ontInfo as unknown as commonInfo[]}
                         this.ontBunchRes.push(ontRes)
+                        let moduleRes:moduleResponse =  {address: checkIpList[zz], platform:'exa',
+                        moduleInfos:conRes.moduleInfo as unknown as commonInfo[]}
+                        this.moduleBunchRes.push(moduleRes)
                         this.exaIpList.push(checkIpList[zz]);
                     }
                 }               
@@ -454,15 +469,13 @@ export class BunchWork {
 
         }
 
-
-
-        await this.processAxosWork(ipList, LabPatroType.LabPatrolType_AXOSCard |LabPatroType.LabPatrolType_ONT);
+        await this.processAxosWork(ipList, LabPatroType.LabPatrolType_AXOSCard |LabPatroType.LabPatrolType_ONT| LabPatroType.LabPatrolType_Module)
         for (let ii = 0; ii < this.activeIpList.length; ii++) {
             if (this.axosIpList.indexOf(this.activeIpList[ii]) === -1) {
                 ipList.push(this.activeIpList[ii])
             } 
         }
-        await this.processExaWork(ipList, LabPatroType.LabPatrolType_E7Card |LabPatroType.LabPatrolType_ONT);
+        await this.processExaWork(ipList, LabPatroType.LabPatrolType_E7Card |LabPatroType.LabPatrolType_ONT | LabPatroType.LabPatrolType_Module);
         logger.info('workerID ' + this.workerID + ' handle subnet '+ this.ipRange?.ipPrefix + ' done')       
     }
 

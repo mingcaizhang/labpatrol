@@ -9,11 +9,22 @@ export enum LabPatroType {
     LabPatrolType_AXOSCard = 0x1,
     LabPatrolType_E7Card = 0x2,
     LabPatrolType_ONT = 0x4,    
+    LabPatrolType_Module = 0x8,
 }
+
+export enum DBType{
+    DBType_AXOS_CARD = 1,
+    DBType_EXA_CARD = 2,
+    DBType_AXOS_ONT = 3,
+    DBType_EXA_ONT = 4,
+    DBType_AXOS_MODULE = 5,
+    DBType_EXA_MODULE = 6
+};
 
 export interface LabPatroResult {
     cardInfo: LabPatroAny[]|undefined
     ontInfo:  LabPatroAny[]|undefined
+    moduleInfo: LabPatroAny[]|undefined
 }
 
 
@@ -21,6 +32,29 @@ export interface LabPatroAny {
     [attr: string]: string
 }
 
+export function getExaModuleHeader():string[] {
+    return ["Connector type",
+        "Vendor info",
+       "Version info", 
+        "Manufacturer",   
+        "ManufacturerPartNo",
+        "ManufacturerSerial",        
+        "CLEI",                     
+        "Link length"]
+}
+
+export function getAxosModuleHeader():string[] {
+    return ["module-type", "identifier", "connector", "vendor-oui", 
+    "vendor-part-number", "vendor-revision", "vendor-serial-number", "vendor-manufacture-date", "vendor-name",
+    "wave-length", "bit-rate", "fiber-length-9-125-km",
+    // XFP uses "max-bitrate", "len-smf-fiber"
+    "max-bitrate", "len-smf-fiber"]
+}
+
+export const AxosModuleHeaderChgMap:{[attr: string]: string} = {
+    "max-bitrate": "bit-rate",
+    "len-smf-fiber": "fiber-length-9-125-km"
+}
 
 export function getExaOntHeader():string[] {
     return ['address',

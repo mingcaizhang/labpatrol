@@ -1,7 +1,7 @@
 import { InvestigateClient } from "./Connectivity"
 import logger from "./logger"
 import { CliResFormatMode } from "./ResultSplit"
-import { LabPatroType, LabPatroResult, LabPatroAny } from "./LabPatrolPub"
+import { LabPatroType, LabPatroResult, LabPatroAny, getAxosModuleHeader, AxosModuleHeaderChgMap} from "./LabPatrolPub"
 type OntOut = {
     [attr: string]: string,
 }
@@ -43,6 +43,7 @@ export class AXOSCard {
         }
         return false
     }
+
     async checkDiscoverOnt(ipAddr: string): Promise<number | any[]> {
         try {
             let rc: number = -1;
@@ -84,10 +85,129 @@ export class AXOSCard {
             logger.error(e)
             return []
         }
+    }
+
+    moduleMapChg( moduleOne:LabPatroAny) {
+        for (let key in moduleOne) {
+            if (Object.keys(AxosModuleHeaderChgMap).indexOf(key) != -1) {
+                let newKey = AxosModuleHeaderChgMap[key]
+                moduleOne[newKey] = moduleOne[key]
+                delete moduleOne[key]
+            }
+        }
+    }
+
+    async checkEtherModule(ipAddr: string): Promise<number | any[]> {
+        try {
+            let rc: number = -1;
+            if (this.invesClient === undefined) {
+                rc = await this.connect(ipAddr)
+                if (rc != 0) {
+                    return rc
+                }
+            }
+            if (this.invesClient === undefined) {
+                return -1
+            }
+
+
+            await this.invesClient.sendCommand('paginate false')
+
+            let moduleRes = await this.invesClient.sendCommand('show interface ethernet module', 20000)
+            if (!moduleRes || moduleRes === -1) {
+                logger.error('AXOScard checkEtherModule ' + ipAddr + 'no result ')
+                return []
+            }
+
+            this.invesClient.resultSplit.splitResult(moduleRes, CliResFormatMode.CliResFormatLine)
+            let moduleOut = this.invesClient.resultSplit.getLineFormatOut()
+            let moduleReslist:LabPatroAny[] =[]
+            const headerList = getAxosModuleHeader()
+            for (let ii = 0; ii < moduleOut.length; ii++) {
+                if (moduleOut[ii].name.indexOf('interface') != -1) {
+                    let moduleOne:LabPatroAny = {}
+                    // result is name:interface   value:ethernet x/x/x
+                    moduleOne["portPosition"] = moduleOut[ii].value.replace('ethernet', '').trim()
+                    if (moduleOut[ii].childs && moduleOut[ii].childs[0] && moduleOut[ii].childs[0].name === 'module') {
+                        for (let kk = 0; kk < moduleOut[ii].childs[0].childs.length; kk++) {
+                            if (headerList.indexOf(moduleOut[ii].childs[0].childs[kk].name) != -1) {
+                                moduleOne[moduleOut[ii].childs[0].childs[kk].name] = moduleOut[ii].childs[0].childs[kk].value
+                            }
+                        }                   
+                    }
+                    if (Object.keys(moduleOne).length > 1) {
+                        // change some map 
+                        this.moduleMapChg(moduleOne)
+                        moduleReslist.push(moduleOne)
+                    }
+                }
+            }
+            logger.info(JSON.stringify(moduleReslist))
+
+            return moduleReslist;
+        } catch (e) {
+            logger.error(e)
+            return []
+        }
 
 
     }
 
+    async checkPonModule(ipAddr: string): Promise<number | any[]> {
+        try {
+            let rc: number = -1;
+            if (this.invesClient === undefined) {
+                rc = await this.connect(ipAddr)
+                if (rc != 0) {
+                    return rc
+                }
+            }
+            if (this.invesClient === undefined) {
+                return -1
+            }
+
+
+            await this.invesClient.sendCommand('paginate false')
+
+            let moduleRes = await this.invesClient.sendCommand('show interface pon module')
+            if (!moduleRes || moduleRes === -1) {
+                logger.error('AXOScard checkPonModule ' + ipAddr + 'no result ')
+                return []
+            }
+
+            this.invesClient.resultSplit.splitResult(moduleRes, CliResFormatMode.CliResFormatLine)
+            let moduleOut = this.invesClient.resultSplit.getLineFormatOut()
+            let moduleReslist:LabPatroAny[] =[]
+            const headerList = getAxosModuleHeader()
+            for (let ii = 0; ii < moduleOut.length; ii++) {
+                if (moduleOut[ii].name.indexOf('interface') != -1) {
+                    let moduleOne:LabPatroAny = {}
+                    // result is name:interface   value:pon x/x/x
+                    if (moduleOut[ii].childs && moduleOut[ii].childs[0] && moduleOut[ii].childs[0].name === 'module') {
+                        moduleOne["portPosition"] = moduleOut[ii].value.replace('pon', '').trim()
+                        for (let kk = 0; kk < moduleOut[ii].childs[0].childs.length; kk++) {
+                            if (headerList.indexOf(moduleOut[ii].childs[0].childs[kk].name) != -1) {
+                                moduleOne[moduleOut[ii].childs[0].childs[kk].name] = moduleOut[ii].childs[0].childs[kk].value
+                            }
+                        }                   
+                    }
+
+                    if (Object.keys(moduleOne).length > 1) {
+                        this.moduleMapChg(moduleOne)
+                        moduleReslist.push(moduleOne)
+                    }
+                }
+            }
+            logger.info(JSON.stringify(moduleReslist))
+
+            return moduleReslist;
+        } catch (e) {
+            logger.error(e)
+            return []
+        }
+
+
+    }
     async checkCard(ipAddr: string): Promise<number | any[]> {
         let rc: number = -1;
         type CardCombineOut = {
@@ -175,6 +295,7 @@ export class AXOSCard {
         let axosCard = new AXOSCard()
         let cardInfo
         let ontInfo
+        let moduleInfo:LabPatroAny[] = []
         rc = await axosCard.connect(ipAddr)
         if (rc != 0) {
             return -1;
@@ -194,9 +315,23 @@ export class AXOSCard {
             }
         }
 
+        if (patrolType & LabPatroType.LabPatrolType_Module) {
+            let ret = await axosCard.checkPonModule(ipAddr)
+            if (ret != -1) {
+                moduleInfo = ret as unknown as LabPatroAny[]
+            }         
+            
+            ret = await axosCard.checkEtherModule(ipAddr)
+            if (ret != -1) {
+                moduleInfo?.push(...(ret as unknown as LabPatroAny[]))
+            }
+
+        }
+
         let resInfo: LabPatroResult = {
             ontInfo: ontInfo,
-            cardInfo: cardInfo
+            cardInfo: cardInfo,
+            moduleInfo:moduleInfo
         }
 
         await axosCard.disconnect()
@@ -207,11 +342,14 @@ export class AXOSCard {
 if (__filename === require.main?.filename) {
     (async () => {
         // await E7Card.checkCard('10.245.69.179')
-        let res = await AXOSCard.doPatrolWork('10.245.34.156', LabPatroType.LabPatrolType_AXOSCard | LabPatroType.LabPatrolType_ONT)
+        let res = await AXOSCard.doPatrolWork('10.245.34.156', LabPatroType.LabPatrolType_AXOSCard | LabPatroType.LabPatrolType_ONT |LabPatroType.LabPatrolType_Module)
         if (res != -1) {
             let conRes = res as unknown as LabPatroResult
             console.log(JSON.stringify(conRes.cardInfo))
             console.log(JSON.stringify(conRes.ontInfo))
         }
+
+
+        
     })()
 }

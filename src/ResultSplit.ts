@@ -204,7 +204,7 @@ export class ResultSplit{
         let lineStrTmp = lineStr.trimStart();
         let sPos = lineStrTmp.search(/:/)
         if (sPos != -1) {
-            return [lineStrTmp.substr(0, sPos).trimEnd(), lineStrTmp.substr(sPos+1).trim()]
+            return [lineStrTmp.substr(0, sPos).trimEnd(), lineStrTmp.substr(sPos+1).trim() === ''? ' ':lineStrTmp.substr(sPos+1).trim()]
         }else {
             return [lineStrTmp, '']
         }

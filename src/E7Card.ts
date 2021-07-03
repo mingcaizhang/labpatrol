@@ -1,7 +1,7 @@
 import { TelnetClient } from "./Connectivity"
 import logger from "./logger"
 import { CliResFormatMode } from "./ResultSplit"
-import { LabPatroResult, LabPatroAny, LabPatroType } from "./LabPatrolPub"
+import { LabPatroResult, LabPatroAny, LabPatroType, getExaModuleHeader} from "./LabPatrolPub"
 type OntOut = {
     [attr: string]: string,
 }
@@ -36,6 +36,7 @@ export class E7Card {
         }
         return false
     }    
+
     async checkDiscoverOnt(ipAddr: string): Promise<number | any[]> {
         let rc = -1
         type OntOut = {
@@ -75,6 +76,113 @@ export class E7Card {
             }
             // (JSON.stringify(ontList))
             return ontList
+        }catch (e) {
+            logger.error(e)
+            return []
+        }
+
+    }
+    async checkEtherModule(ipAddr: string): Promise<number | any[]> {
+        let rc = -1
+
+        try {
+            if (this.invesClient === undefined) {
+                rc = await this.connect(ipAddr)
+                if (rc != 0) {
+                    return rc
+                }
+            }
+            if (this.invesClient === undefined) {
+                return -1
+            }
+            let result = await this.invesClient.sendCommand('set session pager disabled')
+            result = await this.invesClient.sendCommand('show eth-port detail')
+            if (!result || result === -1) {
+                logger.error('E7card checkEtherModule ' + ipAddr + 'no eth-port ')
+                return []
+            }
+            this.invesClient.resultSplit.splitResult(result, CliResFormatMode.CliResFormatLineExaWithColon)
+    
+            let ponPortRes = this.invesClient.resultSplit.getLineFormatOut()
+            // console.log(disOntRes[0])
+            let ponModuleList = []
+            let headerList = getExaModuleHeader()
+            let matchReg = /[g|x]\d/
+            for (let ii = 0; ii < ponPortRes.length; ii++) {
+                let ponModule: LabPatroAny = {}
+
+                if (ponPortRes[ii] && ponPortRes[ii].childs[0] && matchReg.exec( ponPortRes[ii].childs[0].name)) {
+
+                    for (let jj = 1; jj < ponPortRes[ii].childs.length; jj++) {
+                        if (headerList.indexOf(ponPortRes[ii].childs[jj].name) != -1) {
+                            ponModule[ponPortRes[ii].childs[jj].name] = ponPortRes[ii].childs[jj].value
+                        }
+                    }
+                    if (Object.keys(ponModule).length > 0) {
+                        ponModule['portPosition'] = ponPortRes[ii].childs[0].name
+                    }
+                    
+                }
+                if (Object.keys(ponModule).length > 1) {
+                    ponModuleList.push(ponModule)
+                }
+            
+            }
+            logger.info(JSON.stringify(ponModuleList))
+            return ponModuleList
+        }catch (e) {
+            logger.error(e)
+            return []
+        }
+
+    }
+
+    
+    async checkPonModule(ipAddr: string): Promise<number | any[]> {
+        let rc = -1
+
+        try {
+            if (this.invesClient === undefined) {
+                rc = await this.connect(ipAddr)
+                if (rc != 0) {
+                    return rc
+                }
+            }
+            if (this.invesClient === undefined) {
+                return -1
+            }
+            let result = await this.invesClient.sendCommand('set session pager disabled')
+            result = await this.invesClient.sendCommand('show gpon-port detail')
+            if (!result || result === -1) {
+                logger.error('E7card checkPonModule ' + ipAddr + 'no gpon-port ')
+                return []
+            }
+            this.invesClient.resultSplit.splitResult(result, CliResFormatMode.CliResFormatLineExaWithColon)
+    
+            let ponPortRes = this.invesClient.resultSplit.getLineFormatOut()
+            // console.log(disOntRes[0])
+            let ponModuleList = []
+            const headerList = getExaModuleHeader()
+            for (let ii = 0; ii < ponPortRes.length; ii++) {
+                let ponModule: LabPatroAny = {}
+                
+                if (ponPortRes[ii] && ponPortRes[ii].childs[0] && ponPortRes[ii].childs[0].name.indexOf('GPON port') !=-1) {
+                    ponModule['portPosition'] = ponPortRes[ii].childs[0].name.replace('GPON port', '')
+                    for (let jj = 1; jj < ponPortRes[ii].childs.length; jj++) {
+                        if (headerList.indexOf(ponPortRes[ii].childs[jj].name) != -1) {
+                            ponModule[ponPortRes[ii].childs[jj].name] = ponPortRes[ii].childs[jj].value
+                        }
+                        
+                    }
+                }
+                if (Object.keys(ponModule).length > 1) {
+                    ponModuleList.push(ponModule)
+                }
+                
+            }
+            logger.info(JSON.stringify(ponModuleList))
+            // (JSON.stringify(ontList))
+            return ponModuleList
         }catch (e) {
             logger.error(e)
             return []
@@ -165,6 +273,7 @@ export class E7Card {
         let e7Card = new E7Card()
         let cardInfo
         let ontInfo
+        let moduleInfo:LabPatroAny[]=[]
         rc = await e7Card.connect(ipAddr)
         if (rc != 0) {
             return -1;
@@ -184,9 +293,22 @@ export class E7Card {
             }
         }
 
+        if (patrolType & LabPatroType.LabPatrolType_Module) {
+            let ret = await e7Card.checkPonModule(ipAddr)
+            if (ret != -1) {
+                moduleInfo = ret as unknown as LabPatroAny[]
+            }
+
+            ret = await e7Card.checkEtherModule(ipAddr)
+            if (ret != -1) {
+                moduleInfo.push(...(ret as unknown as LabPatroAny[]))
+            }
+        }
+
         let resInfo: LabPatroResult = {
             ontInfo: ontInfo,
-            cardInfo: cardInfo
+            cardInfo: cardInfo,
+            moduleInfo: moduleInfo
         }
         await e7Card.disconnect()
         return resInfo;
@@ -198,7 +320,7 @@ export class E7Card {
 if (__filename === require.main?.filename) {
     (async () => {
         // await E7Card.checkCard('10.245.69.179')
-        let res = await E7Card.doPatrolWork('10.245.34.188', LabPatroType.LabPatrolType_E7Card | LabPatroType.LabPatrolType_ONT)
+        let res = await E7Card.doPatrolWork('10.245.12.100', LabPatroType.LabPatrolType_E7Card | LabPatroType.LabPatrolType_ONT |LabPatroType.LabPatrolType_Module)
         if (res != -1) {
             let conRes = res as unknown as LabPatroResult
             console.log(JSON.stringify(conRes.cardInfo))
