@@ -451,6 +451,7 @@ export class BunchWork {
         let ipList:string[] = []
         this.cardBunchRes = []
         this.ontBunchRes = []
+        this.moduleBunchRes = []
 
         let matchStr = /\d+.\d+.\d+.(\d+)/
         // check if has subnet excludes 
