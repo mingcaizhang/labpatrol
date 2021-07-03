@@ -570,6 +570,7 @@ class ClusterWork {
 
     async updateDbDescTable(tableName:string, dbType:number, name:string) {
         // inpro
+        let addColumnName = ''
         let tableItem:TableSchema = {'id':"1",
                                         'axosCard':"",
                                          'axosOnt':"", 
@@ -589,31 +590,38 @@ class ClusterWork {
             case DBType.DBType_AXOS_CARD:
                 tableChg['axosCard'] = name
                 tableItem['axosCard'] = name
+                addColumnName = 'axosCard'
                 break;
             case DBType.DBType_AXOS_ONT:
                 tableChg['axosOnt'] = name
                 tableItem['axosOnt'] = name
+                addColumnName = 'axosOnt'
                 break;
             case DBType.DBType_EXA_CARD:
                 tableChg['exaCard'] = name
                 tableItem['exaCard'] = name
+                addColumnName = 'exaCard'
                 break;
             case DBType.DBType_EXA_ONT:
                 tableChg['exaOnt'] = name
                 tableItem['exaOnt'] = name
+                addColumnName = 'exaOnt'
                 break;
             case DBType.DBType_AXOS_MODULE:
                 tableChg['axosModule'] = name
                 tableItem['axosModule'] = name
+                addColumnName = 'axosModule'
                 break;
             case DBType.DBType_EXA_MODULE:
                 tableChg['exaModule'] = name
                 tableItem['exaModule'] = name
+                addColumnName = 'exaModule'
                 break;    
             default:
                 break;
         }
 
+        await this.dataStore?.addTableColumn(tableName, addColumnName)
         if (!rows || (rows as []).length ===0) {
             await this.dataStore?.insertData(tableName, tableItem)
 
