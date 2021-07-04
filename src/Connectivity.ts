@@ -332,7 +332,20 @@ export class InvestigateClient {
             if (this.promptRegex) {
                 this.promptResolve(this.streamData)
             }
-            
+        }else {
+            let matchReg = new RegExp(this.promptRegex)
+            let idx = dataString.search(matchReg)
+            if (idx != -1) {
+                this.streamData = this.streamData.substr(this.streamData.indexOf('\n') + 1)
+                this.streamData = this.streamData.substr(0, idx)
+                if (this.promptTimer) {
+                    clearTimeout(this.promptTimer)
+                    this.promptTimer = undefined
+                }
+                if (this.promptRegex) {
+                    this.promptResolve(this.streamData)
+                }              
+            }
         }
         logger.info(dataString)
     }

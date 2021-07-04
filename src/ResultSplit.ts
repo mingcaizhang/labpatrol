@@ -148,6 +148,8 @@ export class ResultSplit{
 
         if (strPos < strContent.length) {
             resultColumn.push(strContent.substr(strPos))
+        }else {
+            resultColumn.push('')
         }
 
         return resultColumn;
@@ -431,6 +433,121 @@ export class ResultSplit{
         return 0;
 
     }
+
+    // jezhang>show sessions 
+    // "*" indicates this session.
+    //                                                                            Auto
+    // ID  User          Login                       Notifications   Pager      Logout
+    // --- ------------- --------------------------- --------------- -------- --------
+    //  1  e7support     telnet from 192.168.37.52   Alarm/Event/TCA enabled   enabled
+    //     (debug)       at 1972/08/24 21:05:20                                       
+    //     auth: local
+    // *2  e7support     telnet from 192.168.37.52   Alarm/Event/TCA enabled   enabled
+    //     (debug)       at 1972/08/24 21:09:10                                       
+    //     auth: local
+    
+    // 2 sessions found.    
+    
+    // use the first column to seperate the result
+    splitResultTableWithSeparatorAndMustCol(colNum: number) {
+        let splitTmp = this.outputStr.split('\r\n')
+
+        // logger.info(splitTmp)
+
+        for (let ii=0; ii < splitTmp.length; ii++) {
+            this.splitLines.push(splitTmp[ii])
+            if (splitTmp[ii].indexOf(this.seperator) != -1) {
+                this.splitLinePos.push(this.splitLines.length -1)
+            }
+        }
+
+        if (this.splitLinePos.length == 0) {
+            logger.info('no split line --------');
+            return -1
+        }
+        let startLine = 0
+        let endLine = 0
+        let endMax = 0;
+        for (let ii = 0; ii <this.splitLinePos.length; ii++) {
+            // check the seperator line -1 
+            let lineNum = this.splitLinePos[ii] 
+            let matchRes = this.splitLines[lineNum].matchAll(/ /g)
+            if (lineNum -1 < 0) {
+                logger.error('invalid split line')
+                return -1;
+            }
+            let space:SpacePos[] = [];
+            for (let v of matchRes) {
+                if (v.index) {
+                    let sp:SpacePos = {start:v.index,
+                        end:v.index +1}
+                    space.push(sp)
+                }
+            }
+            logger.info(space)
+            let headerColumn = this.splitToColumnMultiline(startLine, lineNum-1, space)
+            if (this.splitLinePos.length -1 > ii) {
+                endMax  = this.splitLinePos[ii + 1] -1
+            }else {
+                endMax = this.splitLines.length
+            }
+            endLine = endMax;
+            for (let jj = lineNum + 1; jj < endMax; jj++) {
+                if (this.splitLines[jj].length == 0) {
+                    endLine = jj;
+                    break;
+                }
+            }
+
+            let joinColumn:string[] = []
+            let isStart = true
+            for (let jj = 0; jj < headerColumn.length; jj++) {
+                joinColumn.push('')
+            }
+            for (let jj = lineNum + 1; jj < endLine; jj++) {
+                let contentColumn = this.splitToColumn(this.splitLines[jj],space)                
+                
+                // new record find, need add previsou record to the table
+                if (contentColumn[colNum].trim().length > 0) {
+                    if (isStart) {
+                        isStart = false
+                    }else {
+                        let formatOut:ResultFormat = new ResultFormat()
+                        for (let zz = 0; zz< headerColumn.length; zz++) {
+                            let child = new ResultFormat()
+                            child.name = headerColumn[zz]
+                            child.value = joinColumn[zz]
+                            child.level = 0
+                            formatOut.childs.push(child)
+                            joinColumn[zz] = ''
+                        }
+                        this.tableFormatOut.push(formatOut)    
+                    }
+                }
+
+                for (let zz = 0; zz < headerColumn.length; zz++) {
+                    joinColumn[zz] += contentColumn[zz].trim()
+                }
+            }
+            // Add the last one
+            if (joinColumn[colNum] && joinColumn[colNum].length > 0) {
+                let formatOut:ResultFormat = new ResultFormat()
+                for (let zz = 0; zz< headerColumn.length; zz++) {
+                    let child = new ResultFormat()
+                    child.name = headerColumn[zz]
+                    child.value = joinColumn[zz]
+                    child.level = 0
+                    formatOut.childs.push(child)
+                    joinColumn[zz] = ''
+                }
+                this.tableFormatOut.push(formatOut)   
+
+            }
+            startLine = lineNum + 2;
+        } 
+        return 0;
+
+    }
     splitResultTable() {
         let splitTmp = this.outputStr.split('\r\n')
 
@@ -454,7 +571,7 @@ export class ResultSplit{
         for (let ii = 0; ii <this.splitLinePos.length; ii++) {
             // check the seperator line -1 
             let lineNum = this.splitLinePos[ii] 
-            if (lineNum -1 < 0) {
+            if (lineNum -1 < 0) { 
                 logger.error('splitResultTable invalid split');
                 return -1;
 
@@ -510,7 +627,7 @@ export class ResultSplit{
     }
 
 
-    splitResult(resOut:string, format:CliResFormatMode) {
+    splitResult(resOut:string, format:CliResFormatMode, addition:any=undefined) {
         this.splitLines=[];
         this.splitLinePos = []
         this.headerCol = []
@@ -531,7 +648,12 @@ export class ResultSplit{
                 break;
             case CliResFormatMode.CliResFormatTableWithSeparator:
                 this.tableFormatOut = []
-                this.splitResultTableWithSeparator()
+                if (addition === undefined) {
+                    this.splitResultTableWithSeparator()
+                }else {
+                    let col = addition as unknown as number
+                    this.splitResultTableWithSeparatorAndMustCol(col)
+                }
                 break;
             case CliResFormatMode.CliResFormatLineExaWithColon: {
                 this.lineFormatOut = []

@@ -2,6 +2,7 @@ import { TelnetClient } from "./Connectivity"
 import logger from "./logger"
 import { CliResFormatMode } from "./ResultSplit"
 import { LabPatroResult, LabPatroAny, LabPatroType, getExaModuleHeader} from "./LabPatrolPub"
+import { getLocalIpv4Address, reverseIP} from "./NetUtil"
 type OntOut = {
     [attr: string]: string,
 }
@@ -128,7 +129,7 @@ export class E7Card {
                 }
             
             }
-            logger.info(JSON.stringify(ponModuleList))
+            // logger.info(JSON.stringify(ponModuleList))
             return ponModuleList
         }catch (e) {
             logger.error(e)
@@ -180,7 +181,7 @@ export class E7Card {
                 }
                 
             }
-            logger.info(JSON.stringify(ponModuleList))
+            // logger.info(JSON.stringify(ponModuleList))
             // (JSON.stringify(ontList))
             return ponModuleList
         }catch (e) {
@@ -215,7 +216,7 @@ export class E7Card {
             this.invesClient.resultSplit.splitResult(cardResult, CliResFormatMode.CliResFormatTableWithSeparator)
             let showCardRes = this.invesClient.resultSplit.getTableFormatOut()
             let cardInfos: CardCombineOut[] = []
-            logger.info(showCardRes)
+            // logger.info(showCardRes)
             for (let ii = 0; ii < showCardRes.length; ii++) {
                 let cardOut: CardCombineOut = {
                     cardPosition: ''
@@ -258,7 +259,49 @@ export class E7Card {
                     }
                 }
             }
-            logger.info(cardInfos)
+
+            let sessionRes = await this.invesClient.sendCommand('show session')
+            let sessionInfos:LabPatroAny[] = []
+            if (!sessionRes || sessionRes === -1) {
+                logger.error('E7card checkCard ' + ipAddr + 'no show session ')    
+            }else {
+                this.invesClient.resultSplit.splitResult(sessionRes, CliResFormatMode.CliResFormatTableWithSeparator, 0)
+                let sessionOut = this.invesClient.resultSplit.getTableFormatOut()
+               
+                for (let ii = 0; ii <sessionOut.length; ii++) {
+                    let sessOne:LabPatroAny = {}
+                    for (let kk = 0; kk < sessionOut[ii].childs.length; kk++) {
+                        sessOne[sessionOut[ii].childs[kk].name] = sessionOut[ii].childs[kk].value
+                    }
+                    sessionInfos.push(sessOne)
+                }
+            }  
+            let ipAddrList:string[] = []
+            let mathchReg = /from (\d+.\d+.\d+.\d+)/
+            for (let ii = 0; ii < sessionInfos.length; ii++) {
+                let matchRes = mathchReg.exec(sessionInfos[ii]['Login'])
+                if (matchRes && matchRes[1] && ipAddrList.indexOf(matchRes[1]) === -1) {
+                    ipAddrList.push(matchRes[1])
+                }
+            }
+            let localIps = await getLocalIpv4Address()
+            let hostName = ''
+            for (let ii = 0; ii < ipAddrList.length; ii++) {
+                if (localIps.indexOf(ipAddrList[ii]) === -1) {
+                    let hostRet = await reverseIP(ipAddrList[ii])
+                    if (hostRet && hostRet != -1) {
+                        hostName += hostRet + '; '
+                    }else {
+                       hostName += ipAddrList[ii] + '; '
+                    }
+                }
+            }
+
+            for (let ii = 0; ii < cardInfos.length; ii++) {
+                cardInfos[ii]['recentUser'] = hostName
+            }
+
+            // ogger.info(cardInfos)
             return cardInfos;
 
         } catch (e) {
@@ -320,7 +363,7 @@ export class E7Card {
 if (__filename === require.main?.filename) {
     (async () => {
         // await E7Card.checkCard('10.245.69.179')
-        let res = await E7Card.doPatrolWork('10.245.12.100', LabPatroType.LabPatrolType_E7Card | LabPatroType.LabPatrolType_ONT |LabPatroType.LabPatrolType_Module)
+        let res = await E7Card.doPatrolWork('10.245.12.100', LabPatroType.LabPatrolType_E7Card /* | LabPatroType.LabPatrolType_ONT |LabPatroType.LabPatrolType_Module */)
         if (res != -1) {
             let conRes = res as unknown as LabPatroResult
             console.log(JSON.stringify(conRes.cardInfo))

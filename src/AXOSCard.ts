@@ -2,11 +2,13 @@ import { InvestigateClient } from "./Connectivity"
 import logger from "./logger"
 import { CliResFormatMode } from "./ResultSplit"
 import { LabPatroType, LabPatroResult, LabPatroAny, getAxosModuleHeader, AxosModuleHeaderChgMap} from "./LabPatrolPub"
+import { getLocalIpv4Address, reverseIP} from "./NetUtil"
 type OntOut = {
     [attr: string]: string,
 }
 export class AXOSCard {
     invesClient: InvestigateClient | undefined
+    shellIpList:string[] = []
 
     async connect(ipAddr: string): Promise<number> {
         let rc = -1;
@@ -20,6 +22,24 @@ export class AXOSCard {
                 return -1;
             }
         } else {
+            let ipAddrList:string[] = []
+            let sessionRes = await this.invesClient.sendCommand('who')
+            if (!sessionRes || sessionRes === -1) {
+                logger.error('AXOSCard who ' + ipAddr + 'no who ')   
+            }else {
+                let sessionSplit = sessionRes.split('\r\n')
+                let matchReg = /\s+(\d+.\d+.\d+.\d+)/
+                for (let ii = 0; ii < sessionSplit.length; ii++) {
+                    let matchRes = matchReg.exec(sessionSplit[ii])
+                    if (matchRes && matchRes[1]) {
+                        if (ipAddrList.indexOf(matchRes[1]) === -1) {
+                            ipAddrList.push(matchRes[1])
+                        }
+                    }
+                }
+            }
+            this.shellIpList = ipAddrList
+            
             rc = await this.invesClient.sendCommand('/opt/confd/bin/confd_cli')
             if (rc === -1) {
                 this.invesClient.disconnect()
@@ -142,7 +162,7 @@ export class AXOSCard {
                     }
                 }
             }
-            logger.info(JSON.stringify(moduleReslist))
+            // logger.info(JSON.stringify(moduleReslist))
 
             return moduleReslist;
         } catch (e) {
@@ -198,7 +218,7 @@ export class AXOSCard {
                     }
                 }
             }
-            logger.info(JSON.stringify(moduleReslist))
+            // logger.info(JSON.stringify(moduleReslist))
 
             return moduleReslist;
         } catch (e) {
@@ -233,7 +253,7 @@ export class AXOSCard {
                 return []
             }
 
-            logger.info('\r\n' + cardResult)
+            // logger.info('\r\n' + cardResult)
             // invesClient.resultSplit.setOutput(cardResult)
             this.invesClient.resultSplit.splitResult(cardResult, CliResFormatMode.CliResFormatTable)
 
@@ -275,11 +295,42 @@ export class AXOSCard {
                     }
                 }
             }
+            
+            let ipAddrList:string[] = []
+            ipAddrList.push(...this.shellIpList)
+            let sessionRes = await this.invesClient.sendCommand('show user-sessions | include session-ip')
+            if (!sessionRes || sessionRes === -1) {
+                logger.error('E7card checkCard ' + ipAddr + 'no show session ')   
+            }else {
+                let sessionSplit = sessionRes.split('\r\n')
+                let matchReg = /session-ip\s+(\d+.\d+.\d+.\d+)/
+                for (let ii = 0; ii < sessionSplit.length; ii++) {
+                    let matchRes = matchReg.exec(sessionSplit[ii])
+                    if (matchRes && matchRes[1]) {
+                        if (ipAddrList.indexOf(matchRes[1]) === -1) {
+                            ipAddrList.push(matchRes[1])
+                        }
+                    }
+                }
+            }
 
+            let localIps = await getLocalIpv4Address()
+            let hostName = ''
+            for (let ii = 0; ii < ipAddrList.length; ii++) {
+                if (localIps.indexOf(ipAddrList[ii]) === -1) {
+                    let hostRet = await reverseIP(ipAddrList[ii])
+                    if (hostRet && hostRet != -1) {
+                        hostName += hostRet + '; '
+                    }else {
+                       hostName += ipAddrList[ii] + '; '
+                    }
+                }
+            }
 
-            // for (let ii = 0; ii < showVerRes.length; ii++) {
-            //     console.log(cardInfos[ii])
-            // }
+            for (let ii = 0; ii < cardInfos.length; ii++) {
+                cardInfos[ii]['recentUser'] = hostName
+            }
+           
 
             return cardInfos;
 
@@ -342,7 +393,7 @@ export class AXOSCard {
 if (__filename === require.main?.filename) {
     (async () => {
         // await E7Card.checkCard('10.245.69.179')
-        let res = await AXOSCard.doPatrolWork('10.245.34.156', LabPatroType.LabPatrolType_AXOSCard | LabPatroType.LabPatrolType_ONT |LabPatroType.LabPatrolType_Module)
+        let res = await AXOSCard.doPatrolWork('10.245.36.55', LabPatroType.LabPatrolType_AXOSCard /* | LabPatroType.LabPatrolType_ONT |LabPatroType.LabPatrolType_Module */)
         if (res != -1) {
             let conRes = res as unknown as LabPatroResult
             console.log(JSON.stringify(conRes.cardInfo))

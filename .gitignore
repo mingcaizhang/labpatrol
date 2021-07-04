@@ -26,6 +26,8 @@ dist/ResultSplit.d.ts
 dist/ResultSplit.js
 dist/TestTelnet.js
 dist/Util.d.ts
+dist/NetUtil.d.ts
+dist/NetUtil.js
 logs/
 node_modules/
 package-lock.json
