@@ -28,12 +28,10 @@ export async function getLocalIpv4Address():Promise<string[]> {
     let strRes:string[] =[]
     let matchIpv4 = /\d+.\d+.\d+.\d+/
     for (let key in nets) {
-        if (key === 'Local Area Connection') {
-            for (let ii = 0; ii < nets[key].length; ii++) {
-                if (nets[key][ii] && nets[key][ii].address) {
-                    if (matchIpv4.exec(nets[key][ii].address)) {
-                        strRes.push(nets[key][ii].address)
-                    }
+        for (let ii = 0; ii < nets[key].length; ii++) {
+            if (nets[key][ii] && nets[key][ii].address) {
+                if (matchIpv4.exec(nets[key][ii].address)) {
+                    strRes.push(nets[key][ii].address)
                 }
             }
         }
