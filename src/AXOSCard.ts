@@ -1,7 +1,7 @@
 import { InvestigateClient } from "./Connectivity"
 import logger from "./logger"
 import { CliResFormatMode } from "./ResultSplit"
-import { LabPatroType, LabPatroResult, LabPatroAny, getAxosModuleHeader, AxosModuleHeaderChgMap} from "./LabPatrolPub"
+import { LabPatroType, LabPatroResult, LabPatroAny, getAxosModuleHeader, AxosModuleHeaderChgMap, ExecuteCommand} from "./LabPatrolPub"
 import { getLocalIpv4Address, reverseIP} from "./NetUtil"
 type OntOut = {
     [attr: string]: string,
@@ -226,7 +226,7 @@ export class AXOSCard {
             return []
         }
 
-
+        this.checkCard("1234")
     }
     async checkCard(ipAddr: string): Promise<number | any[]> {
         let rc: number = -1;
@@ -388,19 +388,53 @@ export class AXOSCard {
         await axosCard.disconnect()
         return resInfo
     }
+
+    static async executeCommands(ipAddr: string, cmdList:string[]): Promise<number | any[]> {
+        let rc = -1
+        let axosCard = new AXOSCard()
+        rc = await axosCard.connect(ipAddr)
+        if (rc != 0) {
+            return -1;
+        }
+
+        if (axosCard.invesClient === undefined) {
+            return -1
+        }
+        let cmdResults = []
+        await axosCard.invesClient.sendCommand('paginate false')
+
+        for (let ii = 0; ii < cmdList.length; ii++) {
+            let res = await axosCard.invesClient.sendCommand(cmdList[ii])
+            cmdResults.push(res)
+        }
+
+        await axosCard.invesClient.disconnect()
+        return cmdResults
+    }
 }
 
 if (__filename === require.main?.filename) {
-    (async () => {
+    // (async () => {
+    //     // await E7Card.checkCard('10.245.69.179')
+    //     let res = await AXOSCard.doPatrolWork('10.245.36.55', LabPatroType.LabPatrolType_AXOSCard /* | LabPatroType.LabPatrolType_ONT |LabPatroType.LabPatrolType_Module */)
+    //     if (res != -1) {
+    //         let conRes = res as unknown as LabPatroResult
+    //         console.log(JSON.stringify(conRes.cardInfo))
+    //         console.log(JSON.stringify(conRes.ontInfo))
+    //     }
+    // })()
+
+     (async () => {
+        let cmdList = ['show card', 'show version', "exit", "uptime", "cli"]
         // await E7Card.checkCard('10.245.69.179')
-        let res = await AXOSCard.doPatrolWork('10.245.36.55', LabPatroType.LabPatrolType_AXOSCard /* | LabPatroType.LabPatrolType_ONT |LabPatroType.LabPatrolType_Module */)
+
+        let res = await AXOSCard.executeCommands('10.245.34.138', cmdList)
+        console.log(res)
         if (res != -1) {
-            let conRes = res as unknown as LabPatroResult
-            console.log(JSON.stringify(conRes.cardInfo))
-            console.log(JSON.stringify(conRes.ontInfo))
+            let resList = res as unknown as []
+            for (let ii = 0; ii < resList.length; ii++) {
+                console.log(resList[ii])
+            }
         }
-
-
-        
-    })()
+    })()   
 }

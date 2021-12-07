@@ -32,6 +32,19 @@ export interface LabPatroAny {
     [attr: string]: string
 }
 
+export enum CommandType {
+    CommandType_CLI = 1,
+    CommandType_SHELL =2,
+}
+
+export interface ExecuteCommand {
+    cmdString: string
+    cmdType: CommandType
+}
+export interface BunchCommands {
+    ipList: string []
+    cmdList: string[]
+}
 export function getExaModuleHeader():string[] {
     return ["Connector type",
         "Vendor info",
@@ -92,3 +105,27 @@ export function sleepSecond(timems:number) {
     })
 
 }
+
+export enum WSBunchCmdsMessgeID  {
+    WSBunchMessgeID_Cmds_Request = 1,
+    WSBunchMessgeID_Cmds_Response = 2,
+    WSBunchMessgeID_Cmds_Res_Finish = 3,
+    WSBunchMessgeID_Cmds_Res_Pend = 4
+}
+
+
+export interface WSBunchCmdsRequest {
+    msgId: number
+    cmds: BunchCommands
+}
+
+export interface WSBunchCmdsResponse {
+    msgId: number
+    cmds?: BunchCommands
+    res: {
+        ipAddr: string,
+        response: string,
+    }
+}
+
+

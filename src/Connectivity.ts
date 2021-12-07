@@ -417,6 +417,7 @@ export class InvestigateClient {
                         port: 22,
                         username: userName,
                         password: passWord,
+                        readyTimeout:5000
                         // privateKey: require('fs').readFileSync('/here/is/my/key')
                     })
 

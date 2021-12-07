@@ -804,6 +804,7 @@ class ClusterWork {
         this.ipL2 = 0;
 
         for (let ii = 0; ii < numCores; ii++) {
+            // @ts-ignore: Unreachable code error
             let worker = cluster.fork();
             let workerInfo: WorkInfo = {
                 worker: worker,
@@ -813,7 +814,7 @@ class ClusterWork {
             
             this.workerList.push(workerInfo)
         }
-
+        // @ts-ignore: Unreachable code error
         cluster.on('online', async (worker: Worker) => {
             logger.info('worker ' + 'id ' + worker.id + ' pid: ' + worker.process.pid + ' online')
             if (worker.id > numCores) {
@@ -840,7 +841,7 @@ class ClusterWork {
                     }
                 }, index * 1000)
         })
-
+        // @ts-ignore: Unreachable code error
         cluster.on('message', async function (worker: Worker, message: MessageInfo) {
             let index = worker.id - 1;
             if (message.cmd == undefined) {
@@ -1079,6 +1080,7 @@ function setupVorpal(vorpal: Vorpal, clusterMaster: ClusterWork) {
 }
 (async () => {
     let labPatrolCluster = new ClusterWork()
+    // @ts-ignore: Unreachable code error
     if (cluster.isMaster) {
         let ipRange: IpPrefixInfo = {
             ipPrefix: '10.245',
@@ -1092,7 +1094,8 @@ function setupVorpal(vorpal: Vorpal, clusterMaster: ClusterWork) {
         labPatrolCluster.setupWokerProcess(ipRange, cfg.filterIp);
 
     } else {
-        labPatrolCluster.setupWokerExecute(cluster.worker);
+        // @ts-ignore: Unreachable code error
+        labPatrolCluster.setupWokerExecute(cluster.worker as Worker);
 
     }
 
