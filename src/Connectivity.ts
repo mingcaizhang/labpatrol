@@ -329,7 +329,7 @@ export class InvestigateClient {
                 clearTimeout(this.promptTimer)
                 this.promptTimer = undefined
             }
-            if (this.promptRegex) {
+            if (this.promptRegex && this.promptResolve) {
                 this.promptResolve(this.streamData)
             }
         }else {
@@ -342,7 +342,7 @@ export class InvestigateClient {
                     clearTimeout(this.promptTimer)
                     this.promptTimer = undefined
                 }
-                if (this.promptRegex) {
+                if (this.promptRegex && this.promptResolve) {
                     this.promptResolve(this.streamData)
                 }              
             }
