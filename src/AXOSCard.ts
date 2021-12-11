@@ -474,6 +474,7 @@ export class AXOSCard {
             }
             
         }else {
+            await axosCard.invesClient.sendCommand('paginate false')
             for (let ii = 0; ii < cmdList.length; ii++) {
                 let res = await axosCard.invesClient.sendCommand(cmdList[ii])
                 cmdResults.push(res)
