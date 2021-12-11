@@ -14,6 +14,7 @@
     "@types/sqlite3": "^3.1.7",
     "@types/ssh2": "^0.5.46",
     "@types/vorpal": "^1.12.0",
+    "@types/ws": "^8.2.2",
     "cluster": "^0.7.7",
     "log4js": "^6.3.0",
     "net": "^1.0.2",
@@ -25,6 +26,7 @@
     "telnet-client": "^1.4.9",
     "telnet-stream": "^1.0.5",
     "vantage": "^1.7.0",
-    "vorpal": "^1.12.0"
+    "vorpal": "^1.12.0",
+    "ws": "^8.3.0"
   }
 }
