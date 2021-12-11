@@ -1,14 +1,21 @@
 import { InvestigateClient } from "./Connectivity"
 import logger from "./logger"
 import { CliResFormatMode } from "./ResultSplit"
-import { LabPatroType, LabPatroResult, LabPatroAny, getAxosModuleHeader, AxosModuleHeaderChgMap, ExecuteCommand} from "./LabPatrolPub"
+import { LabPatroType, LabPatroResult, LabPatroAny, getAxosModuleHeader, AxosModuleHeaderChgMap, CommandType} from "./LabPatrolPub"
 import { getLocalIpv4Address, reverseIP} from "./NetUtil"
 type OntOut = {
     [attr: string]: string,
 }
+enum ConnectMode {
+    ConnectMode_SHELL = 1,
+    ConnectMode_CLI = 2
+}
+
 export class AXOSCard {
     invesClient: InvestigateClient | undefined
     shellIpList:string[] = []
+    connectMode:ConnectMode = ConnectMode.ConnectMode_SHELL
+    connectTimeOut = 8000 // ms
 
     async connect(ipAddr: string): Promise<number> {
         let rc = -1;
@@ -16,19 +23,21 @@ export class AXOSCard {
         this.invesClient.setPromptFormat('root@((\\S)+):~#', '#')
         rc = await this.invesClient.connect(ipAddr, 'root', 'root')
         if (rc != 0) {
+            this.connectMode = ConnectMode.ConnectMode_CLI
             this.invesClient.setPromptFormat(`using ssh on (\\S+)`, '#')
             rc = await this.invesClient.connect(ipAddr, 'calixsupport', 'calixsupport')
             if (rc != 0) {
                 return -1;
             }
         } else {
+            this.connectMode = ConnectMode.ConnectMode_SHELL
             let ipAddrList:string[] = []
             let sessionRes = await this.invesClient.sendCommand('who')
             if (!sessionRes || sessionRes === -1) {
-                logger.error('AXOSCard who ' + ipAddr + 'no who ')   
+                logger.error('AXOSCard who ' + ipAddr + 'no who ' + JSON.stringify(sessionRes))   
             }else {
                 let sessionSplit = sessionRes.split('\r\n')
-                let matchReg = /\s+(\d+.\d+.\d+.\d+)/
+                let matchReg = /\s+(\d+\.\d+\.\d+\.\d+)/
                 for (let ii = 0; ii < sessionSplit.length; ii++) {
                     let matchRes = matchReg.exec(sessionSplit[ii])
                     if (matchRes && matchRes[1]) {
@@ -226,7 +235,6 @@ export class AXOSCard {
             return []
         }
 
-        this.checkCard("1234")
     }
     async checkCard(ipAddr: string): Promise<number | any[]> {
         let rc: number = -1;
@@ -389,10 +397,18 @@ export class AXOSCard {
         return resInfo
     }
 
+    timeExec(pro:Promise<any>, maxMs: number):Promise<any> {
+        let timePromise = new Promise((resolve)=>{
+            setTimeout(()=>{resolve(-1)}, maxMs)
+
+        })
+        return  Promise.race([pro, timePromise])
+    }
+
     static async executeCommands(ipAddr: string, cmdList:string[]): Promise<number | any[]> {
         let rc = -1
         let axosCard = new AXOSCard()
-        rc = await axosCard.connect(ipAddr)
+        rc = await axosCard.timeExec(axosCard.connect(ipAddr), axosCard.connectTimeOut)
         if (rc != 0) {
             return -1;
         }
@@ -411,6 +427,62 @@ export class AXOSCard {
         await axosCard.invesClient.disconnect()
         return cmdResults
     }
+
+    static async executeCommandsWithType(ipAddr: string, cmdList:string[], cmdType:CommandType): Promise<number | any[]> {
+        let rc = -1
+        let axosCard = new AXOSCard()
+        let cmdResults = []
+        rc = await axosCard.timeExec(axosCard.connect(ipAddr), axosCard.connectTimeOut)
+        if (rc != 0) {
+            return -1;
+        }
+
+        if (axosCard.invesClient === undefined) {
+            return -1
+        }
+        
+        if (cmdType === CommandType.CommandType_SHELL) {
+            if (axosCard.connectMode === ConnectMode.ConnectMode_CLI) {
+                logger.error('executeCommandsWithType: can not exec shell command in cli mode')
+                return -1
+            }
+
+            let cardRes = await axosCard.checkCard(ipAddr)
+            if (cardRes === -1) {
+                logger.error('executeCommandsWithType: check card error')
+                return -1
+            }
+            await axosCard.invesClient.sendCommand('exit')
+            cardRes = cardRes as unknown as LabPatroAny[]
+            for (let ii = 0; ii < cardRes.length; ii++) {
+                if (cardRes[ii]['CARD STATE'] === 'In Service') {
+                    if (cardRes[ii]['CARD TYPE'].indexOf('(Active)') != -1) {
+                        for (let jj = 0; jj < cmdList.length; jj++) {
+                            let res = await axosCard.invesClient.sendCommand(cmdList[jj])
+                            cmdResults.push(res)
+                        }
+                    }else {
+                        let res = await axosCard.invesClient.sendCommand('jump2c.sh '+ cardRes[ii]['cardPosition'])
+                        cmdResults.push(res)
+                        for (let jj = 0; jj < cmdList.length; jj++) {
+                            res = await axosCard.invesClient.sendCommand(cmdList[jj])
+                            cmdResults.push(res)
+                        }
+                        await axosCard.invesClient.sendCommand('exit')
+                    }
+                }
+            }
+            
+        }else {
+            for (let ii = 0; ii < cmdList.length; ii++) {
+                let res = await axosCard.invesClient.sendCommand(cmdList[ii])
+                cmdResults.push(res)
+            }
+        }
+
+        await axosCard.invesClient.disconnect()
+        return cmdResults
+    }    
 }
 
 if (__filename === require.main?.filename) {
@@ -425,16 +497,23 @@ if (__filename === require.main?.filename) {
     // })()
 
      (async () => {
-        let cmdList = ['show card', 'show version', "exit", "uptime", "cli"]
-        // await E7Card.checkCard('10.245.69.179')
+        let cmdList = ['show card', 'show version']
 
-        let res = await AXOSCard.executeCommands('10.245.34.138', cmdList)
+        // let res = await AXOSCard.executeCommands('10.245.34.133', cmdList)
+        // console.log(res)
+        // if (res != -1) {
+        //     let resList = res as unknown as []
+        //     for (let ii = 0; ii < resList.length; ii++) {
+        //         console.log(resList[ii])
+        //     }
+        // }
+        cmdList = ['dcli ponmgrd sx dump']
+        // cmdList = ['show card', 'show version', "exit", "uptime", "cli", 'show version']
+        // cmdList = ['paginate false', 'exit', 'date']
+        let res = await AXOSCard.executeCommandsWithType('10.245.34.156', cmdList, CommandType.CommandType_SHELL)
+        console.log('======================')
         console.log(res)
-        if (res != -1) {
-            let resList = res as unknown as []
-            for (let ii = 0; ii < resList.length; ii++) {
-                console.log(resList[ii])
-            }
-        }
+
     })()   
 }
+

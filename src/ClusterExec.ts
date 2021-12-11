@@ -2,10 +2,12 @@ import * as cluster from 'cluster';
 import {Worker} from 'cluster';
 import * as events from 'events'
 import logger from './logger';
-import { BunchCommands, WSBunchCmdsResponse, WSBunchCmdsRequest, WSBunchCmdsMessgeID } from './LabPatrolPub'
+import { BunchCommands, WSBunchCmdsResponse, WSBunchCmdsRequest, WSBunchCmdsMessgeID, LabPatroType, CommandType} from './LabPatrolPub'
 // mport Vorpal = require('vorpal');
 import * as Vorpal from "vorpal"
 import { AXOSCard } from './AXOSCard';
+import { E7Card } from './E7Card';
+
 // var Vorpal = require("vantage")();A
 // import {DataStore, TableSchema} from './DataStore'
 import * as WS  from 'ws'
@@ -178,7 +180,9 @@ class ClusterExec {
                 if (value.resCode == BunchCommandHandleCode.BunchCommandHandleCodeInit) {
                     let devCmd: BunchCommands = {
                         cmdList: handleBunchCmds.bunchCommands.cmdList,
-                        ipList:[key]
+                        ipList:[key],
+                        cardType: handleBunchCmds.bunchCommands.cardType,
+                        cmdType: handleBunchCmds.bunchCommands.cmdType
                     }
                     this.workerList[idleWorkIdx].worker.send({
                         cmd:  MessageID.MSG_AXOS_ONE_DEV_BUNCH_COMMANDS,
@@ -220,7 +224,9 @@ class ClusterExec {
             if (value.resCode == BunchCommandHandleCode.BunchCommandHandleCodeInit) {
                 let devCmd: BunchCommands = {
                     cmdList: handleBunchCmds.bunchCommands.cmdList,
-                    ipList:[key]
+                    ipList:[key],
+                    cardType: handleBunchCmds.bunchCommands.cardType,
+                    cmdType:handleBunchCmds.bunchCommands.cmdType
                 }
 
                 value.resCode = BunchCommandHandleCode.BunchCommandHandleCodeInProcess
@@ -389,7 +395,13 @@ class ClusterExec {
         process.on('message', async (message: MessageInfo) => {
             if (message.cmd === MessageID.MSG_AXOS_ONE_DEV_BUNCH_COMMANDS) {
                 let devCmd: BunchCommands = message.content as BunchCommands
-                let res = await AXOSCard.executeCommands(devCmd.ipList[0], devCmd.cmdList)
+                let res  
+                if (devCmd.cardType === LabPatroType.LabPatrolType_E7Card) {
+                    res = await E7Card.executeCommands(devCmd.ipList[0], devCmd.cmdList)
+                }else {
+                   res = await AXOSCard.executeCommandsWithType(devCmd.ipList[0], devCmd.cmdList, devCmd.cmdType)
+                }
+                
                 let response: DevBunchCmdResponse
 
                 if (res === -1) {
@@ -399,8 +411,6 @@ class ClusterExec {
                                     resCode: BunchCommandHandleCode.BunchCommandHandleCodeError}
                     }
                 }else {
-
-
                     response = {
                         ipAddr:  devCmd.ipList[0],
                         devResponse: {res: (res as string []).join(''),
@@ -490,11 +500,15 @@ function setupVorpal(vorpal: Vorpal, clusterMaster: ClusterExec) {
         setupVorpal(vorpal, cluterExecInst)
         let bCmds:BunchCommands = {
             ipList:['10.245.34.155', '10.245.34.156'],
-            cmdList:['show card', 'show version']
+            cmdList:['show card', 'show version'],
+            cardType:LabPatroType.LabPatrolType_AXOSCard,
+            cmdType:CommandType.CommandType_CLI
         }
         let bCmds1:BunchCommands = {
             ipList:['10.245.34.155', '10.245.34.156'],
-            cmdList:['show discover', 'show ont']
+            cmdList:['show discover', 'show ont'],
+            cardType:LabPatroType.LabPatrolType_AXOSCard,
+            cmdType:CommandType.CommandType_CLI
         }
         // setTimeout(()=>{
             

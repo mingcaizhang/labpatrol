@@ -37,11 +37,10 @@ export enum CommandType {
     CommandType_SHELL =2,
 }
 
-export interface ExecuteCommand {
-    cmdString: string
-    cmdType: CommandType
-}
+
 export interface BunchCommands {
+    cardType: LabPatroType
+    cmdType: CommandType
     ipList: string []
     cmdList: string[]
 }

@@ -178,7 +178,7 @@ export class TelnetClient extends ClientBase {
     onData(data: Buffer) {
         let dataString = data.toString("utf8")
         this.streamData += dataString
-        logger.info(dataString)
+        logger.info('onData:' + dataString)
         if (!this.promptIsDeteced) {
             this.detectPrompt(dataString)
         }
@@ -217,7 +217,7 @@ export class TelnetClient extends ClientBase {
     }
 
     connect(host: string, userName: string, passWord: string, timeOut:number=10000): Promise<unknown> {
-        logger.error('connect ' + host)
+        logger.error('telnet connect ' + host)
         this.socket = net.createConnection(this.portNo, host);
         this.tSocket = new TelnetSocket(this.socket);
         this.username = userName;
@@ -281,6 +281,7 @@ export class InvestigateClient {
     promptRegex:string;
     promptAppend:string;
     promptTimer:NodeJS.Timeout|undefined;
+    connectResolve:any
 
     constructor() {
         this.promisePrompt = undefined
@@ -294,7 +295,7 @@ export class InvestigateClient {
         this.promptRegex = ''
         this.promptAppend = ''
         this.promptTimer = undefined
-        
+        this.connectResolve = null
         
     }
 
@@ -310,6 +311,10 @@ export class InvestigateClient {
             this.prompt = match[1] + this.promptAppend
             logger.error('detectPrompt: is ' + this.prompt)
             this.promptIsDeteced = true;
+            if (this.connectResolve) {
+                this.connectResolve(0)
+                this.connectResolve = null
+            }
         }
 
     }
@@ -330,24 +335,27 @@ export class InvestigateClient {
                 this.promptTimer = undefined
             }
             if (this.promptRegex && this.promptResolve) {
+                logger.info('cli resolve' + this.streamData)
                 this.promptResolve(this.streamData)
             }
         }else {
             let matchReg = new RegExp(this.promptRegex)
-            let idx = dataString.search(matchReg)
-            if (idx != -1) {
+            let match = dataString.match(matchReg)
+            if (match != null) {
                 this.streamData = this.streamData.substr(this.streamData.indexOf('\n') + 1)
-                this.streamData = this.streamData.substr(0, idx)
+                this.streamData = this.streamData.substr(0, this.streamData.indexOf(match[0]))
                 if (this.promptTimer) {
                     clearTimeout(this.promptTimer)
                     this.promptTimer = undefined
                 }
                 if (this.promptRegex && this.promptResolve) {
+                    logger.info('shell resolve' + this.streamData)
                     this.promptResolve(this.streamData)
                 }              
             }
         }
-        logger.info(dataString)
+        // console.log(dataString)
+        logger.info('onData: ' + dataString)
     }
 
     sendCommand(cmd: string, timeOut:number = 10000): Promise<any> {
@@ -405,12 +413,13 @@ export class InvestigateClient {
                                         that.conn.end();
                                     }
                                 }).on('data', onData);
-                                resolve(0)
+                                that.connectResolve = resolve
                             });
                         }
 
                     }).on('error', function(){
                         logger.error('failed to ssh login '+ host + ` with user:${userName}`)
+                        that.connectResolve = null
                         resolve(-1)
                     }).connect({
                         host: host,
@@ -425,6 +434,7 @@ export class InvestigateClient {
 
 
             })
+            
             return promiseWait
 
 

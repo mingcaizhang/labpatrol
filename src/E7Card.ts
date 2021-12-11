@@ -357,6 +357,29 @@ export class E7Card {
         return resInfo;
     }
 
+    static async executeCommands(ipAddr: string, cmdList:string[]): Promise<number | any[]> {
+        let rc = -1
+        let exaCard = new E7Card()
+        rc = await exaCard.connect(ipAddr)
+        if (rc != 0) {
+            return -1;
+        }
+
+        if (exaCard.invesClient === undefined) {
+            return -1
+        }
+        let cmdResults = []
+        await exaCard.invesClient.sendCommand('set session pager disabled')
+
+        for (let ii = 0; ii < cmdList.length; ii++) {
+            let res = await exaCard.invesClient.sendCommand(cmdList[ii])
+            cmdResults.push(res)
+        }
+
+        await exaCard.invesClient.disconnect()
+        return cmdResults
+    }
+
 }
 
 

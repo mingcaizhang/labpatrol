@@ -1,5 +1,5 @@
 import * as WebSocket from "ws"
-import {WSBunchCmdsRequest, WSBunchCmdsMessgeID, BunchCommands, WSBunchCmdsResponse} from "./LabPatrolPub"
+import {WSBunchCmdsRequest, WSBunchCmdsMessgeID, BunchCommands, WSBunchCmdsResponse, CommandType, LabPatroType} from "./LabPatrolPub"
 const ws = new WebSocket('ws://localhost:8081');
 
 
@@ -7,8 +7,10 @@ ws.on('open', function open() {
     let wsRequest: WSBunchCmdsRequest = {
         msgId: WSBunchCmdsMessgeID.WSBunchMessgeID_Cmds_Request,
         cmds: {
-            ipList:  ["10.245.34.155", "10.245.16.33"],
-            cmdList: ["show card", "show version"]
+            ipList:  /* ["10.245.16.233"], */ ['10.245.34.133'],
+            cmdList: ["dcli ponmgrd sx dump"],
+            cardType: LabPatroType.LabPatrolType_AXOSCard,
+            cmdType: CommandType.CommandType_SHELL
         }
     }
     ws.send(JSON.stringify(wsRequest))
