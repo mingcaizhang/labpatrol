@@ -455,8 +455,10 @@ export class AXOSCard {
             await axosCard.invesClient.sendCommand('exit')
             cardRes = cardRes as unknown as LabPatroAny[]
             for (let ii = 0; ii < cardRes.length; ii++) {
-                if (cardRes[ii]['CARD STATE'] === 'In Service') {
-                    if (cardRes[ii]['CARD TYPE'].indexOf('(Active)') != -1) {
+                if (cardRes[ii]['CARD STATE'] === 'In Service' || 
+                cardRes[ii]['CARD STATE'] === 'Degraded') {
+                    if (cardRes[ii]['CARD TYPE'].indexOf('(Active)') != -1 || 
+                    cardRes[ii]['CARD TYPE'].indexOf('(Standalone)') != -1) {
                         for (let jj = 0; jj < cmdList.length; jj++) {
                             let res = await axosCard.invesClient.sendCommand(cmdList[jj])
                             cmdResults.push(res)
@@ -498,7 +500,7 @@ if (__filename === require.main?.filename) {
     // })()
 
      (async () => {
-        let cmdList = ['show card', 'show version']
+        let cmdList = ['show card', 'config', 'interface pon 1/1/xp1', 'end', 'show interface pon 1/1/xp1']
 
         // let res = await AXOSCard.executeCommands('10.245.34.133', cmdList)
         // console.log(res)
@@ -509,8 +511,8 @@ if (__filename === require.main?.filename) {
         //     }
         // }
         cmdList = ['dcli ponmgrd sx dump']
-        // cmdList = ['show card', 'show version', "exit", "uptime", "cli", 'show version']
-        // cmdList = ['paginate false', 'exit', 'date']
+        // // cmdList = ['show card', 'show version', "exit", "uptime", "cli", 'show version']
+        // // cmdList = ['paginate false', 'exit', 'date']
         let res = await AXOSCard.executeCommandsWithType('10.245.34.156', cmdList, CommandType.CommandType_SHELL)
         console.log('======================')
         console.log(res)

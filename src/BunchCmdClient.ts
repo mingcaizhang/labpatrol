@@ -7,8 +7,8 @@ ws.on('open', function open() {
     let wsRequest: WSBunchCmdsRequest = {
         msgId: WSBunchCmdsMessgeID.WSBunchMessgeID_Cmds_Request,
         cmds: {
-            ipList:  /* ["10.245.16.233"], */ ['10.245.34.133'],
-            cmdList: ["dcli ponmgrd sx dump"],
+            ipList:  /* ["10.245.16.233"], */ ['10.245.96.88'],
+            cmdList: ["date"],
             cardType: LabPatroType.LabPatrolType_AXOSCard,
             cmdType: CommandType.CommandType_SHELL
         }

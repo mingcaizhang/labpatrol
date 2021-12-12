@@ -325,8 +325,14 @@ export class InvestigateClient {
         if (!this.promptIsDeteced) {
             this.detectPrompt(dataString)
         }
+        let that = this
+        function checkRegCLiMatch() {
+            let reg = new RegExp(that.prompt.substr(0, that.prompt.length -1) + '\\(\\S+\\)#')
+            return reg.exec(dataString)
+        }
+
         // logger.info('this.prompt' + this.prompt)
-        if (dataString.indexOf(this.prompt) != -1) {
+        if (dataString.indexOf(this.prompt) != -1 || checkRegCLiMatch() != null) {
             // logger.info('find prompt')
             this.streamData = this.streamData.substr(this.streamData.indexOf('\n') + 1)
             this.streamData = this.streamData.substr(0, this.streamData.indexOf(this.prompt))
