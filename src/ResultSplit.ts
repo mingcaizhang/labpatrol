@@ -1,4 +1,5 @@
 import logger from "./logger"
+import {DiagTable, DiagTableRow, DiagTableItem} from './DiagPub'
 
 type SpacePos = {
     start: number;
@@ -25,6 +26,7 @@ export enum CliResFormatMode {
     CliResFormatLine = 2,
     CliResFormatTableWithSeparator = 3,
     CliResFormatLineExaWithColon = 4,   
+    CliResFormatTableWithColumnNum = 5
 }
 
 export class ResultSplit{
@@ -51,6 +53,7 @@ export class ResultSplit{
     setOutput(output:string) {
         this.outputStr = output
     }
+
     mergeSpace(pos1:SpacePos[], pos2:SpacePos[]):SpacePos[] {
         let maxNum = pos1.length > pos2.length? pos2.length:pos1.length
         let pos1Cur = 0;
@@ -308,6 +311,7 @@ export class ResultSplit{
         return splitResult
         
     }
+
     splitResultLine():ResultFormat[] {
         let splitTmp = this.outputStr.split('\r\n')
         for (let ii = 0; ii < splitTmp.length; ii++) {
@@ -626,7 +630,6 @@ export class ResultSplit{
         return this.lineFormatOut;
     }
 
-
     splitResult(resOut:string, format:CliResFormatMode, addition:any=undefined) {
         this.splitLines=[];
         this.splitLinePos = []
@@ -663,5 +666,69 @@ export class ResultSplit{
                 break;
         }
     }
+
+
+    parseContentByColumnNum(parseResult:string, columnNum:number):DiagTable|number {
+        let parseStrList = parseResult.split('\r\n')
+        let posListEachLine =[]
+        for (let ii = 0; ii < parseStrList.length; ii++) {
+            let line = parseStrList[ii]
+            if (line.trim() === '') {
+                continue
+            }
+            let lineStrList = line
+            let spacePos = this.findSpace(line)
+            if (spacePos.length + 1 < columnNum) {
+                logger.error(`parseContentByColumnNum: spacePos Number ${spacePos.length} less than ${columnNum} ${line}`)
+                return -1
+
+            }
+            posListEachLine.push(spacePos)
+        }
+        let mergeSpace = []
+        // 1 merge the each line Pos 2 use top "columnNum" for the result
+        if (parseStrList.length < 2) {
+            mergeSpace = posListEachLine[0]
+        }else {
+            mergeSpace = posListEachLine[0]
+            for (let ii = 1 ; ii < posListEachLine.length; ii++) {
+                mergeSpace = this.mergeSpace(mergeSpace, posListEachLine[ii])
+            }
+        }
+
+        if (mergeSpace.length + 1 < columnNum) {
+            logger.error(`parseContentByColumnNum: Merge Number ${mergeSpace.length} less than ${columnNum}`)
+            return -1
+        }
+        
+        let topNPos:SpacePos[] = []
+        if (mergeSpace.length === columnNum) {
+            topNPos = mergeSpace
+
+        }else {
+            topNPos = mergeSpace.sort((a, b)=>{return (a.end - a.start) - (b.end - b.start)}).slice(0, columnNum)
+            topNPos = topNPos.sort((a, b)=>{return (a.start - b.start)})
+        }
+        let tableResult:DiagTable = {rows:[], columnName:[]}
+        for (let line of parseStrList) {
+            if (line.trim() === '') {
+                continue
+            }
+            let startPos = 0
+            let row:DiagTableRow = []
+            for (let pos of topNPos) {
+                let item:DiagTableItem ={value:''}
+                item.value = line.substring(startPos, pos.start).trim()
+                startPos = pos.end
+                row.push(item)
+            }
+            let item:DiagTableItem ={value:''}
+            item.value = line.substring(startPos).trim()
+            row.push(item)
+            tableResult.rows.push(row)
+        }
+
+        return tableResult
+    }   
 
 }

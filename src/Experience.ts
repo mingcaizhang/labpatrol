@@ -52,3 +52,11 @@ console.log(Object.getOwnPropertyDescriptor(console,'log')?.value('log pritn'));
 // Tests:
 console.log('%s %d', 'hi', 42);
 console.log({ a: 'foo', b: 'bar'});
+
+let  map2 = new Map<{shelf:number, slot:number}, string>()
+map2.set({shelf:1, slot:1}, 'card1')
+map2.set({shelf:1, slot:2}, 'card2')
+map2.set({shelf:1, slot:2}, 'card3')
+console.log(map2)
+console.log(map2.get({shelf:1, slot:1}))
+

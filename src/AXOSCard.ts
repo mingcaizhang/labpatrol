@@ -1,8 +1,9 @@
 import { InvestigateClient } from "./Connectivity"
 import logger from "./logger"
-import { CliResFormatMode } from "./ResultSplit"
+import { CliResFormatMode, ResultSplit } from "./ResultSplit"
 import { LabPatroType, LabPatroResult, LabPatroAny, getAxosModuleHeader, AxosModuleHeaderChgMap, CommandType} from "./LabPatrolPub"
 import { getLocalIpv4Address, reverseIP} from "./NetUtil"
+import {DiagGradeParse} from "./DiagGradeParse"
 type OntOut = {
     [attr: string]: string,
 }
@@ -486,6 +487,8 @@ export class AXOSCard {
         await axosCard.invesClient.disconnect()
         return cmdResults
     }    
+
+    
 }
 
 if (__filename === require.main?.filename) {
@@ -500,7 +503,7 @@ if (__filename === require.main?.filename) {
     // })()
 
      (async () => {
-        let cmdList = ['show card', 'config', 'interface pon 1/1/xp1', 'end', 'show interface pon 1/1/xp1']
+        let cmdList = ['show interface pon rx-power-history']
 
         // let res = await AXOSCard.executeCommands('10.245.34.133', cmdList)
         // console.log(res)
@@ -510,12 +513,94 @@ if (__filename === require.main?.filename) {
         //         console.log(resList[ii])
         //     }
         // }
-        cmdList = ['dcli ponmgrd sx dump']
+        // cmdList = ['dcli ponmgrd sx dump']
         // // cmdList = ['show card', 'show version', "exit", "uptime", "cli", 'show version']
         // // cmdList = ['paginate false', 'exit', 'date']
-        let res = await AXOSCard.executeCommandsWithType('10.245.34.156', cmdList, CommandType.CommandType_SHELL)
+        // let res = await AXOSCard.executeCommandsWithType('10.245.34.156', cmdList, CommandType.CommandType_CLI)
+        // console.log('======================')
+        // console.log(res)
+
+        // let diagGradeParse = new DiagGradeParse()
+        // if (typeof res === 'object') {
+        //     diagGradeParse.setParseStr(res[0])
+        //     let pathResult = diagGradeParse.retriveParseNode([[{prefix:"interface pon", value:''}], [{prefix:"rx-power-history", value:""}], [{prefix:"high-rx-power", value:""}],
+        //                                         [{prefix:"rx-power", value:""}, {prefix:"serial-number", value:""}]])
+        //     console.log(JSON.stringify(pathResult))
+        // }
+
+        // cmdList = ['show running-config policy-map ']
+        //  let res = await AXOSCard.executeCommandsWithType('10.245.34.156', cmdList, CommandType.CommandType_CLI)
+        // console.log('======================')
+        // console.log(res)
+
+        // let diagGradeParse = new DiagGradeParse()
+        // if (typeof res === 'object') {
+        //     diagGradeParse.setParseStr(res[0])
+        //     let pathResult = diagGradeParse.retriveParseNode([[{prefix:"policy-map", value:'add-s-l2-match'}], [{prefix:"class-map-ethernet", value:""}]])
+        //     console.log(JSON.stringify(pathResult))
+        // }   
+
+
+
+
+        // cmdList = ['dcli halm_dnx  show ont  sd']
+        //  let res = await AXOSCard.executeCommandsWithType('10.245.34.156', cmdList, CommandType.CommandType_SHELL)
+
+
+        // console.log('======================')
+        // console.log(res)
+
+        // let resultSpli = new ResultSplit()
+        // if (typeof res === 'object') {
+        //     let resStr = res[0] as string
+        //     resStr = resStr.substring(resStr.indexOf('\n') + 1)
+
+        //     let tableRes = resultSpli.parseContentByColumnNum(resStr, 3)
+        //     console.log(JSON.stringify(tableRes))
+        // }
+        
+        let diagGradeParse = new DiagGradeParse()
+        cmdList = ['show running-config transport-service-profile']
+         let res = await AXOSCard.executeCommandsWithType('10.245.34.156', cmdList, CommandType.CommandType_CLI)
+        console.log('======================')
+        console.log(res)        
+        if (typeof res === 'object') {
+            diagGradeParse.setParseStr(res[0])
+            let pathResult = diagGradeParse.retriveParseNode([[{prefix:"transport-service-profile", value:''}], [{prefix:"vlan-list", value:""}]])
+
+            console.log(JSON.stringify(pathResult))
+            let filtRes = diagGradeParse.getItemValueFromPath(pathResult, ['vlan-list'])
+            console.log(filtRes)
+        }   
+
+        cmdList = ['show running-config interface ethernet']
+        res = await AXOSCard.executeCommandsWithType('10.245.34.156', cmdList, CommandType.CommandType_CLI)
+        console.log('======================')
+        console.log(res)        
+        if (typeof res === 'object') {
+            diagGradeParse.setParseStr(res[0])
+            let pathResult = diagGradeParse.retriveParseNode([[{prefix:"interface ethernet", value:''}], [{prefix:"role", value:""}, {prefix:"transport-service-profile", value:""}]])
+
+            console.log(JSON.stringify(pathResult))
+            let filtRes = diagGradeParse.getItemValueFromPath(pathResult, ['interface ethernet', "role", "transport-service-profile"])
+            console.log(filtRes)
+        }   
+
+        cmdList = ['show running-config class-map ethernet']
+         res = await AXOSCard.executeCommandsWithType('10.245.34.156', cmdList, CommandType.CommandType_CLI)
         console.log('======================')
         console.log(res)
+
+        if (typeof res === 'object') {
+            diagGradeParse.setParseStr(res[0])
+            let pathResult = diagGradeParse.retriveParseNode([[{prefix:"class-map ethernet", value:'match_pcp'}], [{prefix:"flow", value:""}],
+            [{prefix:"rule", value:""}]])
+            console.log(JSON.stringify(pathResult))
+            let filtRes = diagGradeParse.getItemValueFromPath(pathResult, ['class-map ethernet', "flow", "rule"])
+            console.log(filtRes)
+        }   
+
+
 
     })()   
 }
