@@ -1,7 +1,7 @@
 import * as cluster from 'cluster'
 import { Worker } from 'cluster';
 import * as events from 'events'
-import { BunchWork, cardResponse, ontResponse, moduleResponse} from "./BunchWork"
+import { BunchWork, cardResponse, ontResponse, moduleResponse, lldpResponse} from "./BunchWork"
 import { IpPrefixInfo, LabPatroType, sleepSecond, DBType } from './LabPatrolPub'
 import logger from './logger';
 import Vorpal = require('vorpal');
@@ -25,8 +25,7 @@ enum MessageID {
     MSG_CARD_PATROL_RPL = 4,
     MSG_ONT_PATROL_RPL = 5,
     MSG_MODULE_PATROL_RPL = 6,
-
-
+    MSG_LLDP_PATROL_RPL = 7,   
 };
 
 
@@ -52,7 +51,8 @@ interface UsedDBTableName {
     exaCardTableName:string,
     exaOntTableName:string,
     axosModuleTableName:string,
-    exaModuleTableName:string
+    exaModuleTableName:string,
+    axosLldpTableName:string,
 }
 
 class MessageInfo {
@@ -74,6 +74,7 @@ class ClusterWork {
     cardResponseList: cardResponse[] = []
     ontResponseList:ontResponse[] = []
     moduleResponseList:moduleResponse[] = []
+    lldpResponseList:lldpResponse[]=[]
     currTableNamePrefix:string=''
     cardFilterCol: string[] = ['cardPosition',
         'CARD STATE',
@@ -89,12 +90,16 @@ class ClusterWork {
     exaOntTableName= ''
     axosModuleTableName =  ''
     exaModuleTableName = ''
+    axosLldpTableName = ''
+    exaLldpTableName = ''
     axosCardTableColumn:string[] = []
     axosOntTableColumn:string[] = []
     exaCardTableColumn:string[] =[]
     exaOntTableColumn:string[]= []
     axosModuleColumn:string[] = []
     exaModuleColumn:string[]=[]
+    axosLldpColumn:string[] = []
+    exaLldpColumn:string[] = []
     hisDBName:UsedDBTableName[] =[]
     excludeIps:string[]= []
     sleepTimeforNext:number = 7200 // 7200 seconds
@@ -122,13 +127,12 @@ class ClusterWork {
         vorpal.log(JSON.stringify(this.exaModuleTableName))              
         vorpal.log('\r\naxosModuleTableSchema:')
         vorpal.log(JSON.stringify(this.axosModuleTableName))              
-
+        vorpal.log('\r\naxosLldbTableSchema:')
+        vorpal.log(JSON.stringify(this.axosLldpTableName))    
         vorpal.log('history record:')
         vorpal.log(JSON.stringify(this.hisDBName))
         
     }
-
-
 
     showCardResult(vorpal: Vorpal, filter: string) {
         vorpal.log('total system ' + this.cardResponseList.length)
@@ -205,6 +209,39 @@ class ClusterWork {
 
     }
 
+    showLldpResult(vorpal:Vorpal, filter:string) {
+        if (filter === 'all') {
+            for (let ii = 0; ii < this.lldpResponseList.length; ii++) {
+                for (let jj = 0; jj < this.lldpResponseList[ii].lldpInfos.length; jj++) {
+                    let outputLine = `IP ${this.lldpResponseList[ii].address} platform ${this.lldpResponseList[ii].platform}`
+                    outputLine +=  JSON.stringify(this.lldpResponseList[ii].lldpInfos[jj])
+                    vorpal.log(outputLine)
+    
+                }
+            }
+        }else if (filter === 'brief'){
+            for (let ii = 0; ii < this.lldpResponseList.length; ii++) {
+                for (let jj = 0; jj < this.lldpResponseList[ii].lldpInfos.length; jj++) {
+                    let outputLine = `IP ${this.lldpResponseList[ii].address} platform ${this.lldpResponseList[ii].platform}`
+                    for (let key in this.lldpResponseList[ii].lldpInfos[jj]) {
+                        if (this.cardFilterCol.indexOf(key) != -1) {
+                            outputLine += key + ':' +   this.lldpResponseList[ii].lldpInfos[jj][key] + ' '
+                        }
+                    }
+                    vorpal.log(outputLine)
+                }
+            }      
+        }else if (filter === 'count') {
+            let totalModule = 0;
+            for (let ii = 0; ii < this.lldpResponseList.length; ii++) {
+                for (let jj = 0; jj < this.lldpResponseList[ii].lldpInfos.length; jj++) {
+                    totalModule++;
+                }
+            }  
+            vorpal.log('total lldp '+ totalModule)
+
+        }
+    }
     showModuleResult(vorpal: Vorpal, filter: string) {
         if (filter === 'all') {
             for (let ii = 0; ii < this.moduleResponseList.length; ii++) {
@@ -500,6 +537,8 @@ class ClusterWork {
         this.ipL2 = 0;
         this.cardResponseList = []
         this.ontResponseList = []
+        this.moduleResponseList = []
+        this.lldpResponseList = []
         this.currTableNamePrefix =''
 
         let dbHist:UsedDBTableName = {
@@ -508,7 +547,8 @@ class ClusterWork {
             exaCardTableName:this.exaCardTableName,
             exaOntTableName:this.exaOntTableName,
             axosModuleTableName:this.axosModuleTableName,
-            exaModuleTableName:this.exaModuleTableName
+            exaModuleTableName:this.exaModuleTableName,
+            axosLldpTableName: this.axosLldpTableName
         }
         this.hisDBName.push(dbHist)
 
@@ -518,12 +558,16 @@ class ClusterWork {
         this.exaOntTableName= ''
         this.axosModuleTableName = ''
         this.exaModuleTableName = ''
+        this.axosLldpTableName = ''
+        this.exaLldpTableName = ''
         this.axosCardTableColumn = []
         this.axosOntTableColumn = []
         this.exaCardTableColumn =[]
         this.exaOntTableColumn = []
         this.exaModuleColumn = []
         this.axosModuleColumn = []
+        this.axosLldpColumn = []
+        this.exaLldpColumn = []
 
         for (let ii = 0; ii < this.workerList.length; ii++) {
             let ipRange = this.getNextIpRange();
@@ -566,6 +610,14 @@ class ClusterWork {
       if (this.axosModuleTableName != '') {
         await this.updateDbDescTable(this.availableDescTableName, DBType.DBType_AXOS_MODULE, this.axosModuleTableName)
       }
+
+      if (this.axosLldpTableName != '') {
+        await this.updateDbDescTable(this.availableDescTableName, DBType.DBType_AXOS_LLDP, this.axosLldpTableName)
+      }
+      if (this.exaLldpTableName != '') {
+        await this.updateDbDescTable(this.availableDescTableName, DBType.DBType_EXA_LLDP, this.exaLldpTableName)
+      }
+
     }
 
     async updateDbDescTable(tableName:string, dbType:number, name:string) {
@@ -577,11 +629,14 @@ class ClusterWork {
                                          'exaCard':"",
                                         'exaOnt':"",
                                         'axosModule':"",
-                                        "exaModule":""}
+                                        "exaModule":"",
+                                        "axosLldp":"",
+                                        'exalldp':""}
 
         let tableCond:TableSchema = {'id':"1"}
         let tableChg:TableSchema = {
         }
+
 
         await this.dataStore?.createDbTable(tableName, tableItem)
 
@@ -616,7 +671,11 @@ class ClusterWork {
                 tableChg['exaModule'] = name
                 tableItem['exaModule'] = name
                 addColumnName = 'exaModule'
-                break;    
+                break; 
+            case DBType.DBType_AXOS_LLDP:
+                tableChg['axosLldp'] = name
+                tableItem['axosLldp'] = name
+                addColumnName = 'axosLldp'            
             default:
                 break;
         }
@@ -706,6 +765,85 @@ class ClusterWork {
         }
 
     }    
+
+    async addLldpRecord(lldpRes:lldpResponse) {
+        if (this.currTableNamePrefix === '') {
+            let dataStr = Date()
+            //Thu Jun 24 2021 12:36:21 GMT+0800 (GMT+08:00)
+            let regExStr =  /(?:\w+) (\w+) (\d+) (\d+) (\d+):(\d+):(\d+)/
+            let searchRes = regExStr.exec(dataStr)
+            if (searchRes) {
+                this.currTableNamePrefix = '' + searchRes[3] + searchRes[1] + searchRes[2] + searchRes[4] + searchRes[5]
+            }else {
+                logger.error('addLldpRecord: invalid dataStr')
+                this.currTableNamePrefix =  new Date().getTime().toString()
+            }
+            
+            
+        }
+        let tableName=  ''
+        if (lldpRes.platform === 'axos') {
+            tableName = 'axoslldp'+ this.currTableNamePrefix;
+            this.axosLldpTableName = tableName
+
+        }else if (lldpRes.platform === 'exa') {
+            tableName = 'examodule' + this.currTableNamePrefix;
+            this.exaLldpTableName = tableName
+        }
+
+        if (lldpRes.lldpInfos === undefined|| lldpRes.lldpInfos.length === 0) {
+            logger.error('addLldpRecord no lldpInfo');
+            return;
+        }
+
+        let tableSchema:TableSchema = {}  
+        tableSchema['address'] = '';
+        tableSchema['platform'] = '';
+        for (let key in lldpRes.lldpInfos[0]) {
+            tableSchema[key] = ''
+        }
+
+        await this.dataStore?.createDbTable(tableName, tableSchema);
+        tableSchema['address'] = lldpRes.address
+        tableSchema['platform'] = lldpRes.platform
+        let colunmInfo:string[] = []
+        // Add the header record if not have
+        if (lldpRes.platform === 'axos') {
+            if (this.axosLldpColumn.length == 0) {
+                for (let key in tableSchema) {
+                    this.axosLldpColumn.push(key)
+                }
+            }
+            colunmInfo = this.axosLldpColumn
+        }else if (lldpRes.platform === 'exa') {
+            if (this.exaLldpColumn.length == 0) {
+                for (let key in tableSchema) {
+                    this.exaLldpColumn.push(key)
+                }
+            }
+            colunmInfo = this.exaLldpColumn
+        }
+
+        
+        for (let ii = 0; ii < lldpRes.lldpInfos.length; ii++) {
+            
+            // make sure the schema match the db struct
+            tableSchema = {}
+            for (let jj = 0; jj < colunmInfo.length; jj++) {
+                tableSchema[colunmInfo[jj]] = ''
+            }
+
+            tableSchema['address'] = lldpRes.address
+            tableSchema['platform'] = lldpRes.platform
+            for (let key in lldpRes.lldpInfos[ii]) {
+                 // filter out the unknown column
+                if (colunmInfo.indexOf(key) != -1) {
+                    tableSchema[key] = lldpRes.lldpInfos[ii][key]
+                }
+            }
+            await this.dataStore?.insertData(tableName, tableSchema)
+        }
+    }
 
     async addModuleRecord(moduleRes:moduleResponse) {
         if (this.currTableNamePrefix === '') {
@@ -900,6 +1038,15 @@ class ClusterWork {
                         await that.addModuleRecord(res[ii])
                     }
                 }
+
+                case MessageID.MSG_LLDP_PATROL_RPL:
+                    {
+                        let res = message.content as lldpResponse[]
+                        that.lldpResponseList.push(...res)
+                        for (let ii = 0; ii < res.length; ii++) {
+                            await that.addLldpRecord(res[ii])
+                        }
+                    }
                 break
             }
 
@@ -943,6 +1090,13 @@ class ClusterWork {
                     cmd: MessageID.MSG_MODULE_PATROL_RPL,
                     content: moduleRes
                 })
+
+                let lldpRes = bunchWork.getLldpBunchRes();
+                (<any>process).send({
+                    cmd: MessageID.MSG_LLDP_PATROL_RPL,
+                    content: lldpRes
+                })
+
             }
         })
     }

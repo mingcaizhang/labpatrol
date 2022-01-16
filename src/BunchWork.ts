@@ -3,6 +3,7 @@ import {E7Card} from "./E7Card"
 import {AXOSCard} from "./AXOSCard"
 import {AliveFind } from './Connectivity'
 import logger from "./logger"
+import { connect } from 'net'
 
 
 export type oneCardInfo = {
@@ -31,6 +32,11 @@ export interface moduleResponse {
     moduleInfos: commonInfo[];
 }
 
+export interface lldpResponse {
+    platform: string;
+    address: string;
+    lldpInfos: commonInfo[];
+}
 export class BunchWork {
     ipRange:IpPrefixInfo|undefined = undefined;
     activeIpList:string[]=[];
@@ -40,6 +46,8 @@ export class BunchWork {
     cardBunchRes:cardResponse[] =[]
     ontBunchRes:ontResponse[] =[]
     moduleBunchRes:moduleResponse[] = []
+    lldpBunchRes:lldpResponse[]=[]
+
     workerID:number = -1;
     excludeIps:string[] = []
     constructor() {
@@ -57,7 +65,9 @@ export class BunchWork {
     getModuleBunchRes():moduleResponse[] {
         return this.moduleBunchRes;
     }
-
+    getLldpBunchRes():lldpResponse[] {
+        return this.lldpBunchRes;
+    }
 
     setupWork(ipRange:IpPrefixInfo, patrolType:number, workerID:number, excludeIps:string[]) {
     // TODO:　
@@ -354,6 +364,10 @@ export class BunchWork {
                         moduleInfos:conRes.moduleInfo as unknown as commonInfo[]}
                         this.moduleBunchRes.push(moduleRes)
                         this.axosIpList.push(checkIpList[zz]);
+
+                        let lldpRes:lldpResponse = {address: checkIpList[zz], platform:"axos",
+                            lldpInfos:conRes.lldpInfo as unknown as commonInfo[]}
+                        this.lldpBunchRes.push(lldpRes)
                     }
                 }               
                 promiseNum = 0;
@@ -373,7 +387,17 @@ export class BunchWork {
                         cardInfos:conRes.cardInfo as unknown as oneCardInfo[]}
                     this.cardBunchRes.push(cardRes);
                     this.axosIpList.push(checkIpList[zz]);
+                    let ontRes:ontResponse =  {address: checkIpList[zz], platform:'axos',
+                    ontInfos:conRes.ontInfo as unknown as commonInfo[]}
+                    this.ontBunchRes.push(ontRes)
+                    let moduleRes:moduleResponse =  {address: checkIpList[zz], platform:'axos',
+                    moduleInfos:conRes.moduleInfo as unknown as commonInfo[]}
+                    this.moduleBunchRes.push(moduleRes)
+                    this.axosIpList.push(checkIpList[zz]);
 
+                    let lldpRes:lldpResponse = {address: checkIpList[zz], platform:"axos",
+                        lldpInfos:conRes.lldpInfo as unknown as commonInfo[]}
+                    this.lldpBunchRes.push(lldpRes)
                 }
             }        
         }
@@ -421,6 +445,9 @@ export class BunchWork {
                         moduleInfos:conRes.moduleInfo as unknown as commonInfo[]}
                         this.moduleBunchRes.push(moduleRes)
                         this.exaIpList.push(checkIpList[zz]);
+                        let lldpRes:lldpResponse = {address: checkIpList[zz], platform:"axos",
+                        lldpInfos:conRes.lldpInfo as unknown as commonInfo[]}
+                        this.lldpBunchRes.push(lldpRes)
                     }
                 }               
                 promiseNum = 0;
@@ -452,6 +479,7 @@ export class BunchWork {
         this.cardBunchRes = []
         this.ontBunchRes = []
         this.moduleBunchRes = []
+        this.lldpBunchRes = []
 
         let matchStr = /\d+.\d+.\d+.(\d+)/
         // check if has subnet excludes 
@@ -470,7 +498,7 @@ export class BunchWork {
 
         }
 
-        await this.processAxosWork(ipList, LabPatroType.LabPatrolType_AXOSCard |LabPatroType.LabPatrolType_ONT| LabPatroType.LabPatrolType_Module)
+        await this.processAxosWork(ipList, LabPatroType.LabPatrolType_AXOSCard |LabPatroType.LabPatrolType_ONT| LabPatroType.LabPatrolType_Module | LabPatroType.LabPatrolType_Lldp)
         for (let ii = 0; ii < this.activeIpList.length; ii++) {
             if (this.axosIpList.indexOf(this.activeIpList[ii]) === -1) {
                 ipList.push(this.activeIpList[ii])

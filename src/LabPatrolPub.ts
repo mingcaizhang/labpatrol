@@ -10,6 +10,7 @@ export enum LabPatroType {
     LabPatrolType_E7Card = 0x2,
     LabPatrolType_ONT = 0x4,    
     LabPatrolType_Module = 0x8,
+    LabPatrolType_Lldp = 0x10,
 }
 
 export enum DBType{
@@ -18,13 +19,16 @@ export enum DBType{
     DBType_AXOS_ONT = 3,
     DBType_EXA_ONT = 4,
     DBType_AXOS_MODULE = 5,
-    DBType_EXA_MODULE = 6
+    DBType_EXA_MODULE = 6,
+    DBType_AXOS_LLDP = 7,
+    DBType_EXA_LLDP
 };
 
 export interface LabPatroResult {
     cardInfo: LabPatroAny[]|undefined
     ontInfo:  LabPatroAny[]|undefined
     moduleInfo: LabPatroAny[]|undefined
+    lldpInfo: LabPatroAny[]|undefined
 }
 
 

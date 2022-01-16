@@ -26,7 +26,8 @@ export enum CliResFormatMode {
     CliResFormatLine = 2,
     CliResFormatTableWithSeparator = 3,
     CliResFormatLineExaWithColon = 4,   
-    CliResFormatTableWithColumnNum = 5
+    CliResFormatTableWithColumnNum = 5,
+    CliResFormatTableCsv = 6
 }
 
 export class ResultSplit{
@@ -438,6 +439,49 @@ export class ResultSplit{
 
     }
 
+    splitResultTableCsvFormat(minSplit:number = 3) {
+        let splitTmp = this.outputStr.split('\r\n')
+
+        // logger.info(splitTmp)
+
+        for (let ii=0; ii < splitTmp.length; ii++) {
+            if (splitTmp[ii].trim().length === 0) {
+                continue
+            }
+            this.splitLines.push(splitTmp[ii])
+        }
+
+        if (this.splitLines.length <= 1) {
+            logger.info('no valid output');
+            return -1
+        } 
+
+    
+        let headerColumn = this.splitLines[0].split(',')
+        if (headerColumn.length < minSplit) {
+            logger.error(`splitResultTableCsvFormat: invalid header column ${this.splitLines[0]}`)
+        }
+        for (let ii = 1; ii < this.splitLines.length; ii++) {
+            let contentColumn = this.splitLines[ii].split(',')
+            if (contentColumn.length != headerColumn.length) {
+                logger.error(`splitResultTableCsvFormat content ${this.splitLines[ii]} invalid`)
+                continue
+            }
+    
+            let formatOut:ResultFormat = new ResultFormat()
+            for (let jj = 0; jj< headerColumn.length; jj++) {
+                let child = new ResultFormat()
+                child.name = headerColumn[jj]
+                child.value = contentColumn[jj]
+                child.level = 0
+                formatOut.childs.push(child)
+            }
+            this.tableFormatOut.push(formatOut)    
+        }
+
+        return 0;
+
+    }
     // jezhang>show sessions 
     // "*" indicates this session.
     //                                                                            Auto
@@ -664,6 +708,11 @@ export class ResultSplit{
                 this.printResultLineFormat(splitRes)
              }
                 break;
+            case CliResFormatMode.CliResFormatTableCsv:
+                this.tableFormatOut = []
+                this.splitResultTableCsvFormat()
+                break
+            
         }
     }
 

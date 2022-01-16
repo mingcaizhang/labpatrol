@@ -60,3 +60,17 @@ map2.set({shelf:1, slot:2}, 'card3')
 console.log(map2)
 console.log(map2.get({shelf:1, slot:1}))
 
+interface ItfA {
+    a: number;
+}
+
+interface ItfB extends ItfA {
+    b: string
+}
+
+let itfAData:ItfA = <ItfA>{a: 3}
+let itfBData:ItfB = <ItfB>itfAData
+itfAData.a = 10
+itfBData.b = '10'
+console.log(itfBData)
+

@@ -351,7 +351,8 @@ export class E7Card {
         let resInfo: LabPatroResult = {
             ontInfo: ontInfo,
             cardInfo: cardInfo,
-            moduleInfo: moduleInfo
+            moduleInfo: moduleInfo,
+            lldpInfo:[]
         }
         await e7Card.disconnect()
         return resInfo;

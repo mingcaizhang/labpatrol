@@ -7,6 +7,9 @@ import {DiagGradeParse} from "./DiagGradeParse"
 type OntOut = {
     [attr: string]: string,
 }
+type AnyOut = {
+    [attr: string]: string,
+}
 enum ConnectMode {
     ConnectMode_SHELL = 1,
     ConnectMode_CLI = 2
@@ -74,6 +77,45 @@ export class AXOSCard {
         return false
     }
 
+    async checkLldpNeighbor(ipAddr: string): Promise<number | any[]>{
+        try {
+            let rc: number = -1;
+            if (this.invesClient === undefined) {
+                rc = await this.connect(ipAddr)
+                if (rc != 0) {
+                    return rc
+                }
+            }
+            if (this.invesClient === undefined) {
+                return -1
+            }
+
+            let lldpOut = await this.invesClient.sendCommand('show lldp neighbor summary | csv')
+            if (!lldpOut || lldpOut === -1) {
+                logger.error('AXOScard checkLldpNeighbor ' + ipAddr + 'no lldp summary')
+                return []
+            }
+
+            this.invesClient.resultSplit.splitResult(lldpOut, CliResFormatMode.CliResFormatTableCsv)
+
+            let lldpFormatOut = this.invesClient.resultSplit.getTableFormatOut()
+            let lldpList = []
+            for (let ii = 0; ii < lldpFormatOut.length; ii++) {
+                let outCombine: AnyOut = {}
+                for (let jj = 0; jj < lldpFormatOut[ii].childs.length; jj++) {
+                    outCombine[lldpFormatOut[ii].childs[jj].name] = lldpFormatOut[ii].childs[jj].value;
+                }
+                lldpList.push(outCombine)
+            }
+            // logger.info(JSON.stringify(ontList))
+            return lldpList;
+        } catch (e) {
+            logger.error(e)
+            return []
+        }
+
+
+    }
     async checkDiscoverOnt(ipAddr: string): Promise<number | any[]> {
         try {
             let rc: number = -1;
@@ -143,7 +185,7 @@ export class AXOSCard {
 
             await this.invesClient.sendCommand('paginate false')
 
-            let moduleRes = await this.invesClient.sendCommand('show interface ethernet module', 20000)
+            let moduleRes = await this.invesClient.sendCommand('show interface ethernet module', 60000)
             if (!moduleRes || moduleRes === -1) {
                 logger.error('AXOScard checkEtherModule ' + ipAddr + 'no result ')
                 return []
@@ -199,7 +241,7 @@ export class AXOSCard {
 
             await this.invesClient.sendCommand('paginate false')
 
-            let moduleRes = await this.invesClient.sendCommand('show interface pon module')
+            let moduleRes = await this.invesClient.sendCommand('show interface pon module', 60000)
             if (!moduleRes || moduleRes === -1) {
                 logger.error('AXOScard checkPonModule ' + ipAddr + 'no result ')
                 return []
@@ -356,10 +398,13 @@ export class AXOSCard {
         let cardInfo
         let ontInfo
         let moduleInfo:LabPatroAny[] = []
-        rc = await axosCard.connect(ipAddr)
+        let lldpInfo:LabPatroAny[] = []
+
+        rc = await axosCard.timeExec(axosCard.connect(ipAddr), axosCard.connectTimeOut)
         if (rc != 0) {
             return -1;
         }
+
 
         if (patrolType & LabPatroType.LabPatrolType_AXOSCard) {
             let ret = await axosCard.checkCard(ipAddr)
@@ -388,10 +433,18 @@ export class AXOSCard {
 
         }
 
+        if (patrolType & LabPatroType.LabPatrolType_Lldp) {
+            let ret = await axosCard.checkLldpNeighbor(ipAddr)
+            if (ret != -1) {
+                lldpInfo = ret as unknown as LabPatroAny[]
+            }         
+        }        
+
         let resInfo: LabPatroResult = {
             ontInfo: ontInfo,
             cardInfo: cardInfo,
-            moduleInfo:moduleInfo
+            moduleInfo:moduleInfo,
+            lldpInfo:lldpInfo
         }
 
         await axosCard.disconnect()
@@ -559,48 +612,52 @@ if (__filename === require.main?.filename) {
         //     console.log(JSON.stringify(tableRes))
         // }
         
-        let diagGradeParse = new DiagGradeParse()
-        cmdList = ['show running-config transport-service-profile']
-         let res = await AXOSCard.executeCommandsWithType('10.245.34.156', cmdList, CommandType.CommandType_CLI)
-        console.log('======================')
-        console.log(res)        
-        if (typeof res === 'object') {
-            diagGradeParse.setParseStr(res[0])
-            let pathResult = diagGradeParse.retriveParseNode([[{prefix:"transport-service-profile", value:''}], [{prefix:"vlan-list", value:""}]])
+        // let diagGradeParse = new DiagGradeParse()
+        // cmdList = ['show running-config transport-service-profile']
+        //  let res = await AXOSCard.executeCommandsWithType('10.245.34.156', cmdList, CommandType.CommandType_CLI)
+        // console.log('======================')
+        // console.log(res)        
+        // if (typeof res === 'object') {
+        //     diagGradeParse.setParseStr(res[0])
+        //     let pathResult = diagGradeParse.retriveParseNode([[{prefix:"transport-service-profile", value:''}], [{prefix:"vlan-list", value:""}]])
 
-            console.log(JSON.stringify(pathResult))
-            let filtRes = diagGradeParse.getItemValueFromPath(pathResult, ['vlan-list'])
-            console.log(filtRes)
-        }   
+        //     console.log(JSON.stringify(pathResult))
+        //     let filtRes = diagGradeParse.getItemValueFromPath(pathResult, ['vlan-list'])
+        //     console.log(filtRes)
+        // }   
 
-        cmdList = ['show running-config interface ethernet']
-        res = await AXOSCard.executeCommandsWithType('10.245.34.156', cmdList, CommandType.CommandType_CLI)
-        console.log('======================')
-        console.log(res)        
-        if (typeof res === 'object') {
-            diagGradeParse.setParseStr(res[0])
-            let pathResult = diagGradeParse.retriveParseNode([[{prefix:"interface ethernet", value:''}], [{prefix:"role", value:""}, {prefix:"transport-service-profile", value:""}]])
+        // cmdList = ['show running-config interface ethernet']
+        // res = await AXOSCard.executeCommandsWithType('10.245.34.156', cmdList, CommandType.CommandType_CLI)
+        // console.log('======================')
+        // console.log(res)        
+        // if (typeof res === 'object') {
+        //     diagGradeParse.setParseStr(res[0])
+        //     let pathResult = diagGradeParse.retriveParseNode([[{prefix:"interface ethernet", value:''}], [{prefix:"role", value:""}, {prefix:"transport-service-profile", value:""}]])
 
-            console.log(JSON.stringify(pathResult))
-            let filtRes = diagGradeParse.getItemValueFromPath(pathResult, ['interface ethernet', "role", "transport-service-profile"])
-            console.log(filtRes)
-        }   
+        //     console.log(JSON.stringify(pathResult))
+        //     let filtRes = diagGradeParse.getItemValueFromPath(pathResult, ['interface ethernet', "role", "transport-service-profile"])
+        //     console.log(filtRes)
+        // }   
 
-        cmdList = ['show running-config class-map ethernet']
-         res = await AXOSCard.executeCommandsWithType('10.245.34.156', cmdList, CommandType.CommandType_CLI)
-        console.log('======================')
+        // cmdList = ['show running-config class-map ethernet']
+        //  res = await AXOSCard.executeCommandsWithType('10.245.34.156', cmdList, CommandType.CommandType_CLI)
+        // console.log('======================')
+        // console.log(res)
+
+        // if (typeof res === 'object') {
+        //     diagGradeParse.setParseStr(res[0])
+        //     let pathResult = diagGradeParse.retriveParseNode([[{prefix:"class-map ethernet", value:'match_pcp'}], [{prefix:"flow", value:""}],
+        //     [{prefix:"rule", value:""}]])
+        //     console.log(JSON.stringify(pathResult))
+        //     let filtRes = diagGradeParse.getItemValueFromPath(pathResult, ['class-map ethernet', "flow", "rule"])
+        //     console.log(filtRes)
+        // }   
+        let axosCard = new AXOSCard()
+        let cmdResults = []
+
+
+        let res = await axosCard.checkLldpNeighbor('10.245.34.156')
         console.log(res)
-
-        if (typeof res === 'object') {
-            diagGradeParse.setParseStr(res[0])
-            let pathResult = diagGradeParse.retriveParseNode([[{prefix:"class-map ethernet", value:'match_pcp'}], [{prefix:"flow", value:""}],
-            [{prefix:"rule", value:""}]])
-            console.log(JSON.stringify(pathResult))
-            let filtRes = diagGradeParse.getItemValueFromPath(pathResult, ['class-map ethernet', "flow", "rule"])
-            console.log(filtRes)
-        }   
-
-
 
     })()   
 }
