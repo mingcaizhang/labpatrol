@@ -460,6 +460,7 @@ export class ResultSplit{
         let headerColumn = this.splitLines[0].split(',')
         if (headerColumn.length < minSplit) {
             logger.error(`splitResultTableCsvFormat: invalid header column ${this.splitLines[0]}`)
+            return -1
         }
         for (let ii = 1; ii < this.splitLines.length; ii++) {
             let contentColumn = this.splitLines[ii].split(',')
