@@ -282,6 +282,7 @@ export class InvestigateClient {
     promptAppend:string;
     promptTimer:NodeJS.Timeout|undefined;
     connectResolve:any
+    promptSave:string  // backup the prompt
 
     constructor() {
         this.promisePrompt = undefined
@@ -296,6 +297,7 @@ export class InvestigateClient {
         this.promptAppend = ''
         this.promptTimer = undefined
         this.connectResolve = null
+        this.promptSave = ''
         
     }
 
@@ -304,6 +306,7 @@ export class InvestigateClient {
         if (this.promptIsDeteced === true) {
             return;
         }
+        logger.info('try detectPrompt:' + strCheck + '  xxx:' + this.promptRegex )
         // let promptReg = /root@((\S)+):~#/
         let bRegex = new RegExp(this.promptRegex)
         let match = strCheck.match(bRegex)
@@ -322,6 +325,9 @@ export class InvestigateClient {
     onData(data: Buffer) {
         let dataString = data.toString()
         this.streamData += dataString
+        logger.info('onData: ' + dataString)
+        // let detectLines = dataString.split('\n')
+        // dataString = detectLines[detectLines.length - 1]
         if (!this.promptIsDeteced) {
             this.detectPrompt(dataString)
         }
@@ -331,7 +337,7 @@ export class InvestigateClient {
             return reg.exec(dataString)
         }
 
-        // logger.info('this.prompt' + this.prompt)
+        // logger.info('on data' + dataString)
         if (dataString.indexOf(this.prompt) != -1 || checkRegCLiMatch() != null) {
             // logger.info('find prompt')
             this.streamData = this.streamData.substr(this.streamData.indexOf('\n') + 1)
@@ -341,7 +347,7 @@ export class InvestigateClient {
                 this.promptTimer = undefined
             }
             if (this.promptRegex && this.promptResolve) {
-                logger.info('cli resolve' + this.streamData)
+                logger.info('cli resolve: ' + this.streamData)
                 this.promptResolve(this.streamData)
             }
         }else {
@@ -361,7 +367,7 @@ export class InvestigateClient {
             }
         }
         // console.log(dataString)
-        logger.info('onData: ' + dataString)
+        
     }
 
     sendCommand(cmd: string, timeOut:number = 10000): Promise<any> {
@@ -387,8 +393,18 @@ export class InvestigateClient {
     setPromptFormat(promptReg:string, promptAppend:string) {
         this.promptRegex = promptReg;
         this.promptAppend = promptAppend;
+        this.promptIsDeteced = false
+        this.prompt = 'xxxxx'
     }
 
+    setUsingPrompt(promptVal:string) {
+        this.promptSave = this.prompt
+        this.prompt = promptVal
+    }
+
+    restorePrompt() {
+        this.prompt = this.promptSave
+    }
     disconnect() {
         this.conn?.end()
         this.conn?.destroy()

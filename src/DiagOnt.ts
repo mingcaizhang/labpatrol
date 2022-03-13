@@ -1,10 +1,12 @@
 import {DiagGradeParse} from "./DiagGradeParse"
+import {ResultSplit, CliResFormatMode} from "./ResultSplit"
 export class DiagOnt {
     runCfg:string = ''
     diagGrade:DiagGradeParse
+    resultSplit:ResultSplit
     constructor() {
         this.diagGrade = new DiagGradeParse()
-
+        this.resultSplit = new ResultSplit()
     }
 
     setRunningConfig(runCfg:string) {
@@ -263,5 +265,42 @@ export class DiagOnt {
         let filtRes = diagGrade.getItemValueFromPath(pathResult, ['interface ont-ethernet',"role"])     
         return filtRes         
     }
+
+    findInterfaceQos() {
+
+    }
+
+    /*
+    [['1021','-','gp1100_2/x1','cos-1','BE-1','0','15000','-','0','15104']]
+    only ingress
+    */
+    findOntQosInfo(ontId:string, res:string):string[][] {
+    // CSV mode output
+    /* INDEX,VLAN,C VLAN,PORT,DIRECTION,TYPE,PON COS,DBA PRIORITY,CIR,EIR,PON COS CIR,PON COS AIR,PON COS EIR
+        0,1021,-,836/g1,ingress,meter,cos-1,AF-1,400000,1000000,-,400000,840000
+        1,1021,-,836/g2,ingress,meter,cos-1,AF-1,0,1000000,-,400000,840000
+    */
+        this.resultSplit.splitResult(res, CliResFormatMode.CliResFormatTableCsv)
+        let formatOut = this.resultSplit.getTableFormatOut()
+        let output:string[][] = []
+        let filterAttr:string[] = [
+            'VLAN','C VLAN','PORT','PON COS','DBA PRIORITY','CIR','EIR','PON COS CIR','PON COS AIR','PON COS EIR']
+ 
+        for (let ii = 0; ii < formatOut.length; ii++) {
+            let outRecord:string[] = []
+            for (let jj = 0; jj < formatOut[ii].childs.length; jj++) {
+                if (filterAttr.indexOf(formatOut[ii].childs[jj].name)) {
+                    outRecord.push(formatOut[ii].childs[jj].value)
+                }
+            }
+            output.push(outRecord)
+        }
+        // logger.info(JSON.stringify(ontList))
+        return output;
+
+    }
+
+
+    
 }
 

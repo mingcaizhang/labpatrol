@@ -278,7 +278,9 @@ export class AXOSDiag extends AXOSCard {
             tid:[],
             oltOutVlan: SVlan, 
             oltVlanAction: 'none', 
-            oltOutPorts: [...outPorts]
+            oltOutPorts: [...outPorts],
+            ingressQos:[],
+            egressQos:[]
            }
            flowList.push(flowInfo)
         }      

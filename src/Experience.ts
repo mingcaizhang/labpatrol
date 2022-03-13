@@ -1,3 +1,4 @@
+
 let map1 = new Map<number, string>()
 map1.set(1, "abc")
 console.log(map1)
@@ -73,4 +74,46 @@ let itfBData:ItfB = <ItfB>itfAData
 itfAData.a = 10
 itfBData.b = '10'
 console.log(itfBData)
+
+
+
+type SquareEvent = { kind1: "square", x: number, y: number , kindx:"square"};
+type CircleEvent = { kind1: "circle", radius: number,  kindx:"circle" };
+
+type EventConfig<Events extends { kind1: string }> = {
+    [E in Events as E['kind1']]: (event: E) => void;
+}
+
+type Config = EventConfig<SquareEvent | CircleEvent>
+
+// function identity<Type>(arg: Type): Type {
+//     return arg;
+//   }
+   
+//   let myIdentity: { <Type>(arg: Type): Type } = identity;
+//   console.log(typeof myIdentity)
+
+  interface GenericIdentityFn<Type> {
+    (arg: Type): Type;
+  }
+   
+  function identity<Type>(arg: Type): Type {
+    return arg;
+  }
+   
+  let myIdentity: GenericIdentityFn<number> = identity;
+  type Person = { age: number; name: string; alive: boolean };
+  const key = "age";
+type Age = Person[typeof key];
+
+
+interface noClon {
+    x: number
+    y: number
+    
+}
+let array1 = ['a', 2, 3]
+for (let index of Object.keys(array1)) {
+  console.log(index)
+}
 

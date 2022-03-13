@@ -23,6 +23,7 @@
     "pbjs": "0.0.14",
     "ping": "^0.4.1",
     "protobufjs": "^6.10.2",
+    "restler-base": "^3.4.6",
     "sqlite3": "^5.0.2",
     "ssh2": "^0.8.9",
     "telnet-client": "^1.4.9",

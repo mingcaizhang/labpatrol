@@ -20,6 +20,30 @@ export interface DiagCardPos {
     shelf:number,
     slot:number
 }
+
+export interface DiagFlowIngressQos {
+    provCir:number,
+    provEir:number,
+    ponCos:string, 
+    dbaPriority:string, 
+    ponCosCir:number,
+    ponCosAir:number,
+    ponCosEir:number
+}
+
+export interface DiagFlowEgressQos {
+    minimum:number,
+    minBurst:number,
+    maximum:number,
+    maxBurst:number,
+    schedulingType:string,
+    weight:number,
+    queueDep:number,
+    discardPolicy:string, 
+    bwp:string,
+    minParentCos:string,
+    maxParentCos:string
+}
 export interface DiagFlowPortrait {
     flowId: number
     ontId: string, 
@@ -32,6 +56,8 @@ export interface DiagFlowPortrait {
     oltOutVlan: number, 
     oltVlanAction: 'none'|'add', 
     oltOutPorts: DiagOltPortPortrait[]
+    ingressQos:DiagFlowIngressQos[]
+    egressQos:DiagFlowEgressQos[]
 }
 
 export interface DiagOntIfPortrait {
@@ -102,3 +128,4 @@ export interface DiagWSMsgOntDiagRes {
     ontId:string,
     OntCompose?: DiagCompose|null
 }
+

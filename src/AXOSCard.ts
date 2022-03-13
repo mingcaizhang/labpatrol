@@ -1,9 +1,11 @@
 import { InvestigateClient } from "./Connectivity"
 import logger from "./logger"
 import { CliResFormatMode, ResultSplit } from "./ResultSplit"
-import { LabPatroType, LabPatroResult, LabPatroAny, getAxosModuleHeader, AxosModuleHeaderChgMap, CommandType} from "./LabPatrolPub"
-import { getLocalIpv4Address, reverseIP} from "./NetUtil"
-import {DiagGradeParse} from "./DiagGradeParse"
+import { LabPatroType, LabPatroResult, LabPatroAny, getAxosModuleHeader, AxosModuleHeaderChgMap, CommandType } from "./LabPatrolPub"
+import { getLocalIpv4Address, reverseIP } from "./NetUtil"
+import { DiagGradeParse } from "./DiagGradeParse"
+import {AspenCardMonitor} from "./LabPatrolPri"
+import { exec } from "child_process"
 type OntOut = {
     [attr: string]: string,
 }
@@ -17,10 +19,10 @@ enum ConnectMode {
 
 export class AXOSCard {
     invesClient: InvestigateClient | undefined
-    shellIpList:string[] = []
-    connectMode:ConnectMode = ConnectMode.ConnectMode_SHELL
+    shellIpList: string[] = []
+    connectMode: ConnectMode = ConnectMode.ConnectMode_SHELL
     connectTimeOut = 8000 // ms
-
+    execCrackStr = 'python ecrack.py'
     async connect(ipAddr: string): Promise<number> {
         let rc = -1;
         this.invesClient = new InvestigateClient()
@@ -35,11 +37,11 @@ export class AXOSCard {
             }
         } else {
             this.connectMode = ConnectMode.ConnectMode_SHELL
-            let ipAddrList:string[] = []
+            let ipAddrList: string[] = []
             let sessionRes = await this.invesClient.sendCommand('who')
             if (!sessionRes || sessionRes === -1) {
-                logger.error('AXOSCard who ' + ipAddr + 'no who ' + JSON.stringify(sessionRes))   
-            }else {
+                logger.error('AXOSCard who ' + ipAddr + 'no who ' + JSON.stringify(sessionRes))
+            } else {
                 let sessionSplit = sessionRes.split('\r\n')
                 let matchReg = /\s+(\d+\.\d+\.\d+\.\d+)/
                 for (let ii = 0; ii < sessionSplit.length; ii++) {
@@ -52,7 +54,7 @@ export class AXOSCard {
                 }
             }
             this.shellIpList = ipAddrList
-            
+
             rc = await this.invesClient.sendCommand('/opt/confd/bin/confd_cli')
             if (rc === -1) {
                 this.invesClient.disconnect()
@@ -62,11 +64,15 @@ export class AXOSCard {
         return 0
     }
 
+    async crackPassword() {
+
+
+    }
     async disconnect() {
         this.invesClient?.disconnect();
     }
 
-    filterSimOnt(ontInfo:OntOut):boolean {
+    filterSimOnt(ontInfo: OntOut): boolean {
         for (let key in ontInfo) {
             if (key === 'CLEI') {
                 if (ontInfo[key].indexOf('SIM') != -1) {
@@ -77,7 +83,7 @@ export class AXOSCard {
         return false
     }
 
-    async checkLldpNeighbor(ipAddr: string): Promise<number | any[]>{
+    async checkLldpNeighbor(ipAddr: string): Promise<number | any[]> {
         try {
             let rc: number = -1;
             if (this.invesClient === undefined) {
@@ -159,7 +165,7 @@ export class AXOSCard {
         }
     }
 
-    moduleMapChg( moduleOne:LabPatroAny) {
+    moduleMapChg(moduleOne: LabPatroAny) {
         for (let key in moduleOne) {
             if (Object.keys(AxosModuleHeaderChgMap).indexOf(key) != -1) {
                 let newKey = AxosModuleHeaderChgMap[key]
@@ -193,11 +199,11 @@ export class AXOSCard {
 
             this.invesClient.resultSplit.splitResult(moduleRes, CliResFormatMode.CliResFormatLine)
             let moduleOut = this.invesClient.resultSplit.getLineFormatOut()
-            let moduleReslist:LabPatroAny[] =[]
+            let moduleReslist: LabPatroAny[] = []
             const headerList = getAxosModuleHeader()
             for (let ii = 0; ii < moduleOut.length; ii++) {
                 if (moduleOut[ii].name.indexOf('interface') != -1) {
-                    let moduleOne:LabPatroAny = {}
+                    let moduleOne: LabPatroAny = {}
                     // result is name:interface   value:ethernet x/x/x
                     moduleOne["portPosition"] = moduleOut[ii].value.replace('ethernet', '').trim()
                     if (moduleOut[ii].childs && moduleOut[ii].childs[0] && moduleOut[ii].childs[0].name === 'module') {
@@ -205,7 +211,7 @@ export class AXOSCard {
                             if (headerList.indexOf(moduleOut[ii].childs[0].childs[kk].name) != -1) {
                                 moduleOne[moduleOut[ii].childs[0].childs[kk].name] = moduleOut[ii].childs[0].childs[kk].value
                             }
-                        }                   
+                        }
                     }
                     if (Object.keys(moduleOne).length > 1) {
                         // change some map 
@@ -249,11 +255,11 @@ export class AXOSCard {
 
             this.invesClient.resultSplit.splitResult(moduleRes, CliResFormatMode.CliResFormatLine)
             let moduleOut = this.invesClient.resultSplit.getLineFormatOut()
-            let moduleReslist:LabPatroAny[] =[]
+            let moduleReslist: LabPatroAny[] = []
             const headerList = getAxosModuleHeader()
             for (let ii = 0; ii < moduleOut.length; ii++) {
                 if (moduleOut[ii].name.indexOf('interface') != -1) {
-                    let moduleOne:LabPatroAny = {}
+                    let moduleOne: LabPatroAny = {}
                     // result is name:interface   value:pon x/x/x
                     if (moduleOut[ii].childs && moduleOut[ii].childs[0] && moduleOut[ii].childs[0].name === 'module') {
                         moduleOne["portPosition"] = moduleOut[ii].value.replace('pon', '').trim()
@@ -261,7 +267,7 @@ export class AXOSCard {
                             if (headerList.indexOf(moduleOut[ii].childs[0].childs[kk].name) != -1) {
                                 moduleOne[moduleOut[ii].childs[0].childs[kk].name] = moduleOut[ii].childs[0].childs[kk].value
                             }
-                        }                   
+                        }
                     }
 
                     if (Object.keys(moduleOne).length > 1) {
@@ -346,13 +352,13 @@ export class AXOSCard {
                     }
                 }
             }
-            
-            let ipAddrList:string[] = []
+
+            let ipAddrList: string[] = []
             ipAddrList.push(...this.shellIpList)
             let sessionRes = await this.invesClient.sendCommand('show user-sessions | include session-ip')
             if (!sessionRes || sessionRes === -1) {
-                logger.error('E7card checkCard ' + ipAddr + 'no show session ')   
-            }else {
+                logger.error('E7card checkCard ' + ipAddr + 'no show session ')
+            } else {
                 let sessionSplit = sessionRes.split('\r\n')
                 let matchReg = /session-ip\s+(\d+.\d+.\d+.\d+)/
                 for (let ii = 0; ii < sessionSplit.length; ii++) {
@@ -372,8 +378,8 @@ export class AXOSCard {
                     let hostRet = await reverseIP(ipAddrList[ii])
                     if (hostRet && hostRet != -1) {
                         hostName += hostRet + '; '
-                    }else {
-                       hostName += ipAddrList[ii] + '; '
+                    } else {
+                        hostName += ipAddrList[ii] + '; '
                     }
                 }
             }
@@ -381,7 +387,7 @@ export class AXOSCard {
             for (let ii = 0; ii < cardInfos.length; ii++) {
                 cardInfos[ii]['recentUser'] = hostName
             }
-           
+
 
             return cardInfos;
 
@@ -397,8 +403,8 @@ export class AXOSCard {
         let axosCard = new AXOSCard()
         let cardInfo
         let ontInfo
-        let moduleInfo:LabPatroAny[] = []
-        let lldpInfo:LabPatroAny[] = []
+        let moduleInfo: LabPatroAny[] = []
+        let lldpInfo: LabPatroAny[] = []
 
         rc = await axosCard.timeExec(axosCard.connect(ipAddr), axosCard.connectTimeOut)
         if (rc != 0) {
@@ -424,8 +430,8 @@ export class AXOSCard {
             let ret = await axosCard.checkPonModule(ipAddr)
             if (ret != -1) {
                 moduleInfo = ret as unknown as LabPatroAny[]
-            }         
-            
+            }
+
             ret = await axosCard.checkEtherModule(ipAddr)
             if (ret != -1) {
                 moduleInfo?.push(...(ret as unknown as LabPatroAny[]))
@@ -437,29 +443,29 @@ export class AXOSCard {
             let ret = await axosCard.checkLldpNeighbor(ipAddr)
             if (ret != -1) {
                 lldpInfo = ret as unknown as LabPatroAny[]
-            }         
-        }        
+            }
+        }
 
         let resInfo: LabPatroResult = {
             ontInfo: ontInfo,
             cardInfo: cardInfo,
-            moduleInfo:moduleInfo,
-            lldpInfo:lldpInfo
+            moduleInfo: moduleInfo,
+            lldpInfo: lldpInfo
         }
 
         await axosCard.disconnect()
         return resInfo
     }
 
-    timeExec(pro:Promise<any>, maxMs: number):Promise<any> {
-        let timePromise = new Promise((resolve)=>{
-            setTimeout(()=>{resolve(-1)}, maxMs)
+    timeExec(pro: Promise<any>, maxMs: number): Promise<any> {
+        let timePromise = new Promise((resolve) => {
+            setTimeout(() => { resolve(-1) }, maxMs)
 
         })
-        return  Promise.race([pro, timePromise])
+        return Promise.race([pro, timePromise])
     }
 
-    static async executeCommands(ipAddr: string, cmdList:string[]): Promise<number | any[]> {
+    static async executeCommands(ipAddr: string, cmdList: string[]): Promise<number | any[]> {
         let rc = -1
         let axosCard = new AXOSCard()
         rc = await axosCard.timeExec(axosCard.connect(ipAddr), axosCard.connectTimeOut)
@@ -482,7 +488,144 @@ export class AXOSCard {
         return cmdResults
     }
 
-    static async executeCommandsWithType(ipAddr: string, cmdList:string[], cmdType:CommandType): Promise<number | any[]> {
+    async crackPass(key:string):Promise<string> {
+        let that = this
+        return new Promise((resolve, reject)=>{
+            exec(
+                that.execCrackStr + key,
+                {
+                  // setting fake environment variable 
+                  env: {
+                    NODE_ENV: "production",
+                  },
+                },
+                (error, stdout, stderror) => {
+                  // if any error while executing
+                  if (error) {
+                    console.error("Error: ", error);
+                    return;
+                  }
+              
+                  console.log(stdout); // output from stdout
+                  resolve(stdout)
+                }
+              );    
+
+        })
+   
+    }
+
+    static async execAspenShell(cardMon: AspenCardMonitor, cmdList: string[]): Promise<number | any[]> {
+        let rc = -1
+        let axosCard = new AXOSCard()
+        let cmdResults = []
+        rc = await axosCard.timeExec(axosCard.connect(cardMon.ipAddr), axosCard.connectTimeOut)
+        if (rc != 0) {
+            return -1;
+        }
+
+        if (axosCard.invesClient === undefined) {
+            return -1
+        }
+
+
+        if (axosCard.connectMode === ConnectMode.ConnectMode_CLI) {
+            let oriPrompt = axosCard.invesClient.prompt
+            logger.info('oriPrompt: ' + oriPrompt)
+            await axosCard.invesClient.sendCommand('paginate false')
+            
+            
+            axosCard.invesClient.setUsingPrompt('Enter calixsupport role password')
+            // 'Calix AXOS-R22.1.0 E7-2 Wed Mar 02 16:29:28 2022'
+            // let res = await axosCard.invesClient.sendCommand('show card')
+            let res = await axosCard.invesClient.sendCommand('shell') 
+            logger.info(res)
+            let crackStr = ''
+            if (res != -1) {
+                let lines = res.split('\n')
+                for (let line1 of lines) {
+                    let regResult = /Calix AXOS-(\S*)/.exec(line1)
+                    if (regResult && regResult[0]) {
+                        crackStr = line1.substr(regResult[0].length)
+                    }
+                }
+            }
+            logger.info('crackStr: ' + crackStr)
+            if (crackStr.length === 0) {
+                logger.error(`${cardMon.ipAddr} detect crackStr faild`)
+                return -1
+            }
+            let crackRes = await axosCard.crackPass(crackStr)
+            let crackResLines = crackRes.split('\n')
+            logger.info(crackResLines)
+            oriPrompt = oriPrompt.slice(0, oriPrompt.length - 1)
+            for (let oo of crackResLines) {
+                // console.log(oriPrompt)
+                if (oo.indexOf(oriPrompt) != -1) {
+                    crackRes = oo.split('\t')[1]
+                    logger.info(crackRes)
+                }
+            }
+            axosCard.invesClient.setPromptFormat('root@((\\S)+):', '#')
+            await axosCard.invesClient.sendCommand(crackRes)
+            await axosCard.invesClient.sendCommand('cli')
+            
+        }
+
+
+        let cardRes = await axosCard.checkCard(cardMon.ipAddr)
+        if (cardRes === -1) {
+            logger.error('executeCommandsWithType: check card error')
+            return -1
+        }
+        await axosCard.invesClient.sendCommand('exit')
+
+
+        cardRes = cardRes as unknown as LabPatroAny[]
+
+        for (let ii = 0; ii < cardRes.length; ii++) {
+            if (cardRes[ii]['CARD STATE'] === 'In Service' ||
+                cardRes[ii]['CARD STATE'] === 'Degraded') {
+                if (cardRes[ii]['PROVISION TYPE'] === 'XG801' && cardRes[ii]['cardPosition'].indexOf('1/' + cardMon.slot) != -1) {
+                    if (cardRes[ii]['CARD TYPE'].indexOf('(Active)') != -1) {
+                        axosCard.invesClient.setUsingPrompt('BCM.0>')
+                        await axosCard.invesClient.sendCommand('/usr/bin/aspensh -transport UDP 127.0.0.1:50200')
+                        for (let jj = 0; jj < cmdList.length; jj++) {
+                            let res = await axosCard.invesClient.sendCommand(cmdList[jj])
+                        }
+                        cardMon.state = 'running'
+
+                    } else {
+                        let res = await axosCard.invesClient.sendCommand('jump2c.sh ' + cardRes[ii]['cardPosition'])
+                        axosCard.invesClient.setUsingPrompt('BCM.0>')
+                        await axosCard.invesClient.sendCommand('/usr/bin/aspensh -transport UDP 127.0.0.1:50200')
+                        for (let jj = 0; jj < cmdList.length; jj++) {
+                            res = await axosCard.invesClient.sendCommand(cmdList[jj])
+                        }
+                        cardMon.state = 'running'
+                    }
+                }
+            }
+        }
+
+        let interHandler = setInterval(async () => {
+            if (axosCard && axosCard.invesClient) {
+                let rc = await axosCard.invesClient.sendCommand('/api/get')
+                if (rc === -1) {
+                    logger.error('can not connect anymore')
+                    cardMon.state = 'stop'
+                    clearInterval(interHandler)
+                    await axosCard.invesClient.disconnect()
+                }
+            }
+        }, 60000)
+        
+        
+        return 0
+
+    }
+
+    static async executeCommandsWithType(ipAddr: string, cmdList: string[], cmdType: CommandType): Promise<number | any[]> {
         let rc = -1
         let axosCard = new AXOSCard()
         let cmdResults = []
@@ -494,7 +637,7 @@ export class AXOSCard {
         if (axosCard.invesClient === undefined) {
             return -1
         }
-        
+
         if (cmdType === CommandType.CommandType_SHELL) {
             if (axosCard.connectMode === ConnectMode.ConnectMode_CLI) {
                 logger.error('executeCommandsWithType: can not exec shell command in cli mode')
@@ -509,16 +652,16 @@ export class AXOSCard {
             await axosCard.invesClient.sendCommand('exit')
             cardRes = cardRes as unknown as LabPatroAny[]
             for (let ii = 0; ii < cardRes.length; ii++) {
-                if (cardRes[ii]['CARD STATE'] === 'In Service' || 
-                cardRes[ii]['CARD STATE'] === 'Degraded') {
-                    if (cardRes[ii]['CARD TYPE'].indexOf('(Active)') != -1 || 
-                    cardRes[ii]['CARD TYPE'].indexOf('(Standalone)') != -1) {
+                if (cardRes[ii]['CARD STATE'] === 'In Service' ||
+                    cardRes[ii]['CARD STATE'] === 'Degraded') {
+                    if (cardRes[ii]['CARD TYPE'].indexOf('(Active)') != -1 ||
+                        cardRes[ii]['CARD TYPE'].indexOf('(Standalone)') != -1) {
                         for (let jj = 0; jj < cmdList.length; jj++) {
                             let res = await axosCard.invesClient.sendCommand(cmdList[jj])
                             cmdResults.push(res)
                         }
-                    }else {
-                        let res = await axosCard.invesClient.sendCommand('jump2c.sh '+ cardRes[ii]['cardPosition'])
+                    } else {
+                        let res = await axosCard.invesClient.sendCommand('jump2c.sh ' + cardRes[ii]['cardPosition'])
                         cmdResults.push(res)
                         for (let jj = 0; jj < cmdList.length; jj++) {
                             res = await axosCard.invesClient.sendCommand(cmdList[jj])
@@ -528,8 +671,8 @@ export class AXOSCard {
                     }
                 }
             }
-            
-        }else {
+
+        } else {
             await axosCard.invesClient.sendCommand('paginate false')
             for (let ii = 0; ii < cmdList.length; ii++) {
                 let res = await axosCard.invesClient.sendCommand(cmdList[ii])
@@ -539,9 +682,9 @@ export class AXOSCard {
 
         await axosCard.invesClient.disconnect()
         return cmdResults
-    }    
+    }
 
-    
+
 }
 
 if (__filename === require.main?.filename) {
@@ -555,8 +698,8 @@ if (__filename === require.main?.filename) {
     //     }
     // })()
 
-     (async () => {
-        let cmdList = ['show interface pon rx-power-history']
+    (async () => {
+        // let cmdList = ['show interface pon rx-power-history']
 
         // let res = await AXOSCard.executeCommands('10.245.34.133', cmdList)
         // console.log(res)
@@ -611,7 +754,7 @@ if (__filename === require.main?.filename) {
         //     let tableRes = resultSpli.parseContentByColumnNum(resStr, 3)
         //     console.log(JSON.stringify(tableRes))
         // }
-        
+
         // let diagGradeParse = new DiagGradeParse()
         // cmdList = ['show running-config transport-service-profile']
         //  let res = await AXOSCard.executeCommandsWithType('10.245.34.156', cmdList, CommandType.CommandType_CLI)
@@ -652,13 +795,26 @@ if (__filename === require.main?.filename) {
         //     let filtRes = diagGradeParse.getItemValueFromPath(pathResult, ['class-map ethernet', "flow", "rule"])
         //     console.log(filtRes)
         // }   
-        let axosCard = new AXOSCard()
-        let cmdResults = []
+        // let axosCard = new AXOSCard()
+        // let cmdResults = []
 
 
-        let res = await axosCard.checkLldpNeighbor('10.245.34.156')
-        console.log(res)
-
-    })()   
+        // let res = await axosCard.checkLldpNeighbor('10.245.34.156')
+        // console.log(res)
+        let cmdList = ['/log/id_set_t index=9 log_type=print',
+        '/sub/ object=onu olt_id=0 indication=omci_packet subscribe=off',
+        '/Subscribe_ind object=onu olt_id=0 indication=rei subscribe=off',
+        '/Subscribe_ind object=pon_interface olt_id=0 indication=itu_rogue_detection_completed  subscribe=off',
+        '/Subscribe_ind object=onu olt_id=0 indication=rssi_measurement_completed subscribe=off',
+         '/Subscribe_ind object=onu olt_id=0 indication=invalid_dbru_report subscribe=off',
+         '/Subscribe_ind object=onu olt_id=0 indication=onu_activation_completed subscribe=off',
+         '/Subscribe_ind object=onu olt_id=0 indication=ranging_completed subscribe=off',
+         '/Subscribe_ind object=onu olt_id=0 indication=onu_deactivation_completed subscribe=off',
+         '/Subscribe_ind object=onu olt_id=0 indication=key_exchange_completed subscribe=off']
+        // await AXOSCard.execAspenShell({ipAddr:'10.245.51.35', slot:2, state:'init'}, cmdList)
+        // await AXOSCard.execAspenShell({ipAddr:'10.245.34.156', slot:1, state:'init'}, cmdList)
+        await AXOSCard.execAspenShell({ipAddr:'10.245.48.28', slot:1, state:'init'}, cmdList)
+        // await AXOSCard.executeCommandsWithType('10.245.36.133', ['show card'], CommandType.CommandType_CLI)
+    })()
 }
 

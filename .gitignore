@@ -56,6 +56,10 @@ dist/DiagUtity.d.ts
 dist/DiagUtity.js
 dist/XmlParse.d.ts
 dist/XmlParse.js
+dist/AspenMonitor.d.ts
+dist/AspenMonitor.js
+dist/LabPatrolPri.d.ts
+dist/LabPatrolPri.js
 logs/
 node_modules/
 package-lock.json

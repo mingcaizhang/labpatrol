@@ -1,7 +1,7 @@
 import * as WebSocket from "ws"
 import {WSBunchCmdsRequest, WSBunchCmdsMessgeID, BunchCommands, WSBunchCmdsResponse, CommandType, LabPatroType} from "./LabPatrolPub"
 const ws = new WebSocket('ws://localhost:8081');
-
+import * as net from "net"
 
 ws.on('open', function open() {
     let wsRequest: WSBunchCmdsRequest = {
