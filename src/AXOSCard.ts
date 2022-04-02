@@ -12,7 +12,8 @@ type OntOut = {
 type AnyOut = {
     [attr: string]: string,
 }
-enum ConnectMode {
+
+export enum ConnectMode {
     ConnectMode_SHELL = 1,
     ConnectMode_CLI = 2
 }
@@ -20,7 +21,8 @@ enum ConnectMode {
 export class AXOSCard {
     invesClient: InvestigateClient | undefined
     shellIpList: string[] = []
-    connectMode: ConnectMode = ConnectMode.ConnectMode_SHELL
+    connectMode: ConnectMode = ConnectMode.ConnectMode_SHELL  
+    currentMode: ConnectMode = ConnectMode.ConnectMode_CLI
     connectTimeOut = 8000 // ms
     execCrackStr = 'python ecrack.py'
     async connect(ipAddr: string): Promise<number> {
@@ -61,13 +63,11 @@ export class AXOSCard {
                 return -1;
             }
         }
+        this.currentMode = ConnectMode.ConnectMode_CLI
         return 0
     }
 
-    async crackPassword() {
 
-
-    }
     async disconnect() {
         this.invesClient?.disconnect();
     }
@@ -283,8 +283,8 @@ export class AXOSCard {
             logger.error(e)
             return []
         }
-
     }
+
     async checkCard(ipAddr: string): Promise<number | any[]> {
         let rc: number = -1;
         type CardCombineOut = {
@@ -397,6 +397,8 @@ export class AXOSCard {
         }
 
     }
+
+
 
     static async doPatrolWork(ipAddr: string, patrolType: number): Promise<number | LabPatroResult> {
         let rc = -1
@@ -515,6 +517,60 @@ export class AXOSCard {
    
     }
 
+    async crackLogin():Promise<number> {
+        if (!this.invesClient) {
+            logger.error('crackLogin: not connected')
+            return -1
+        }
+        if (this.connectMode === ConnectMode.ConnectMode_CLI) {
+
+            let oriPrompt = this.invesClient.prompt
+            logger.info('oriPrompt: ' + oriPrompt)
+            await this.invesClient.sendCommand('paginate false')
+            
+            
+            this.invesClient.setUsingPrompt('Enter calixsupport role password')
+            // 'Calix AXOS-R22.1.0 E7-2 Wed Mar 02 16:29:28 2022'
+            // let res = await axosCard.invesClient.sendCommand('show card')
+            let res = await this.invesClient.sendCommand('shell') 
+            logger.info(res)
+            let crackStr = ''
+            if (res != -1) {
+                let lines = res.split('\n')
+                for (let line1 of lines) {
+                    let regResult = /Calix AXOS-(\S*)/.exec(line1)
+                    if (regResult && regResult[0]) {
+                        crackStr = line1.substr(regResult[0].length)
+                    }
+                }
+            }
+            logger.info('crackStr: ' + crackStr)
+            if (crackStr.length === 0) {
+                logger.error(` detect crackStr faild`)
+                return -1
+            }
+            let crackRes = await this.crackPass(crackStr)
+            let crackResLines = crackRes.split('\n')
+            logger.info(crackResLines)
+            oriPrompt = oriPrompt.slice(0, oriPrompt.length - 1)
+            for (let oo of crackResLines) {
+                // console.log(oriPrompt)
+                if (oo.indexOf(oriPrompt) != -1) {
+                    crackRes = oo.split('\t')[1]
+                    logger.info(crackRes)
+                }
+            }
+            this.invesClient.setPromptFormat('root@((\\S)+):', '#')
+            await this.invesClient.sendCommand(crackRes)
+            await this.invesClient.sendCommand('cli')
+            this.connectMode = ConnectMode.ConnectMode_SHELL
+            this.currentMode = ConnectMode.ConnectMode_CLI
+        }
+        return 0
+
+    }
+
+
     static async execAspenShell(cardMon: AspenCardMonitor, cmdList: string[]): Promise<number | any[]> {
         let rc = -1
         let axosCard = new AXOSCard()
@@ -620,10 +676,10 @@ export class AXOSCard {
             }
         }, 60000)
         
-        
         return 0
-
     }
+
+
 
     static async executeCommandsWithType(ipAddr: string, cmdList: string[], cmdType: CommandType): Promise<number | any[]> {
         let rc = -1

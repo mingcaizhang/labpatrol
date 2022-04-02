@@ -1,4 +1,5 @@
 import {DiagGradeParse} from "./DiagGradeParse"
+import logger from "./logger"
 import {ResultSplit, CliResFormatMode} from "./ResultSplit"
 export class DiagOnt {
     runCfg:string = ''
@@ -74,6 +75,38 @@ export class DiagOnt {
         let pathResult = diagGrade.retriveParseNode([[{prefix:"interface ethernet", value:''}], [{prefix:"role", value:""}, {prefix:"transport-service-profile", value:""}]])
         let filtRes = diagGrade.getItemValueFromPath(pathResult, ['interface ethernet', "role", "transport-service-profile"])
         // let filtRes = this.diagGrade.getItemValueFromPath(pathResult, ['interface ethernet', "role", "transport-service-profile"])
+        return filtRes
+    }
+
+    findOntSVlanServ(ontId:string='', cfg:string='', portType:string) {
+        let diagGrade 
+        if (cfg != '') {
+            diagGrade = new DiagGradeParse()
+            diagGrade.setParseStr(cfg)
+        }else {
+            diagGrade = this.diagGrade
+        }
+
+        let pathResult = diagGrade.retriveParseNode([[{prefix:`interface ${portType}`, value:ontId}], [{prefix:"vlan", value:""}],
+             [{prefix:"policy-map", value:""}]])
+        let filtRes = diagGrade.getItemValueFromPath(pathResult, [`interface ${portType}`, "vlan", "policy-map"])
+
+        return filtRes
+    }
+
+    findOntSCVlanServ(ontId:string='', cfg:string='', portType:string) {
+        let diagGrade 
+        if (cfg != '') {
+            diagGrade = new DiagGradeParse()
+            diagGrade.setParseStr(cfg)
+        }else {
+            diagGrade = this.diagGrade
+        }
+
+        let pathResult = diagGrade.retriveParseNode([[{prefix:`interface ${portType}`, value:ontId}], [{prefix:"vlan", value:""}],
+                     [{prefix:"c-vlan", value:""}],  [{prefix:"policy-map", value:""}]])
+        let filtRes = diagGrade.getItemValueFromPath(pathResult, [`interface ${portType}`, "vlan", "c-vlan", "policy-map"])
+
         return filtRes
     }
 
@@ -274,7 +307,7 @@ export class DiagOnt {
     [['1021','-','gp1100_2/x1','cos-1','BE-1','0','15000','-','0','15104']]
     only ingress
     */
-    findOntQosInfo(ontId:string, res:string):string[][] {
+    findOntQosInfo(res:string):string[][] {
     // CSV mode output
     /* INDEX,VLAN,C VLAN,PORT,DIRECTION,TYPE,PON COS,DBA PRIORITY,CIR,EIR,PON COS CIR,PON COS AIR,PON COS EIR
         0,1021,-,836/g1,ingress,meter,cos-1,AF-1,400000,1000000,-,400000,840000
@@ -289,7 +322,7 @@ export class DiagOnt {
         for (let ii = 0; ii < formatOut.length; ii++) {
             let outRecord:string[] = []
             for (let jj = 0; jj < formatOut[ii].childs.length; jj++) {
-                if (filterAttr.indexOf(formatOut[ii].childs[jj].name)) {
+                if (filterAttr.indexOf(formatOut[ii].childs[jj].name) != -1) {
                     outRecord.push(formatOut[ii].childs[jj].value)
                 }
             }
@@ -300,7 +333,137 @@ export class DiagOnt {
 
     }
 
+    /*
+    [
+    ['present'],
+    ]
+    */
+    findOntStatus(res:string) :string[][]{
+        let    diagGrade = new DiagGradeParse()
+        diagGrade.setParseStr(res)
+        let pathResult = diagGrade.retriveParseNode([[{prefix:"status", value:''}], [{prefix:"oper-state", value:""}]])
+        let filtRes = diagGrade.getItemValueFromPath(pathResult, ['oper-state'])     
+        return filtRes       
+    }
 
-    
+    /*
+        PON     SERVICE   COS    TID        PID 
+    [
+        ['7','5/0/0.2000','1'  '7-    6',  '141']
+    ]   
+    */
+    findOntTidPidMap(res:string, ontId:string):string[][] {
+        // tm tid pid info first through  tm tid show -ont
+        let splitLines = res.split('\n')
+        let tmTidStartLine = -1; 
+        let tmTidEndLine = -1 // next is "tm pid show"
+        for (let idx = 0; idx < splitLines.length; idx++) {
+            if (splitLines[idx].indexOf('tm tid show') != -1) {
+                tmTidStartLine = idx + 1
+            }
+            if (splitLines[idx].indexOf('tm pid show') != -1) {
+                tmTidEndLine = idx - 1
+            }
+
+            if (tmTidEndLine != -1 && tmTidEndLine != -1) {
+                break
+            }
+        }
+
+        /*
+        tm tid show -ont 5
+
+        PON        SERVICE       COS    TID    PID 
+        --- -------------------- --- -------- -----
+          7 5/0/0.2000             1  7-    6   141
+          7 5/2/1.1021             1  7-    3   134
+          7 5/2/2.1021             1  7-    4   135
+        */
+
+        if (tmTidStartLine === -1 || tmTidEndLine === -1) {
+            logger.error(`findOntTidPidMap: tmTidStartLine:${tmTidStartLine} tmTidEndLine:${tmTidEndLine}`)
+            return []
+        }
+
+        let parseStrList = splitLines.slice(tmTidStartLine, tmTidEndLine + 1)
+        let parseStr = parseStrList.join('\n')
+        this.resultSplit.splitResult(parseStr, CliResFormatMode.CliResFormatTableWithSeparator)
+        let formatOut = this.resultSplit.getTableFormatOut()
+        let output:string[][] = []
+        let filterAttr:string[] = [
+            'PON','SERVICE','COS','TID','PID']
+ 
+        for (let ii = 0; ii < formatOut.length; ii++) {
+            let outRecord:string[] = []
+            for (let jj = 0; jj < formatOut[ii].childs.length; jj++) {
+                if (filterAttr.indexOf(formatOut[ii].childs[jj].name) != -1) {
+                    outRecord.push(formatOut[ii].childs[jj].value)
+                }
+            }
+            output.push(outRecord)
+        }
+        return output
+    }
+
+    /*
+    [
+        ['1/1','XG801','In Service','"Controller 2 QSFP-DD, 4 10G, 8 XGSPON ports (Active)"','XG801']
+    ]
+    */
+    findCardList(res:string):string[][] {
+        // XG801# show card |csv
+        // CARD,PROVISION TYPE,CARD STATE,CARD TYPE,MODEL,SERIAL NO,SOFTWARE VERSION
+        // 1/1,XG801,In Service,"Controller 2 QSFP-DD, 4 10G, 8 XGSPON ports (Active)",XG801,472101001379,N/A
+
+        this.resultSplit.splitResult(res, CliResFormatMode.CliResFormatTableCsv)
+        let formatOut = this.resultSplit.getTableFormatOut()
+        let output:string[][] = []
+        let filterAttr:string[] = [
+            'CARD','PROVISION TYPE','CARD STATE','CARD TYPE','MODEL','SERIAL NO']
+ 
+        for (let ii = 0; ii < formatOut.length; ii++) {
+            let outRecord:string[] = []
+            for (let jj = 0; jj < formatOut[ii].childs.length; jj++) {
+                if (filterAttr.indexOf(formatOut[ii].childs[jj].name) != -1) {
+                    outRecord.push(formatOut[ii].childs[jj].value)
+                }
+            }
+            output.push(outRecord)
+        }
+        // logger.info(JSON.stringify(ontList))
+        return output;       
+    }
+
+    findAspenGemStats(res:string):string[][] {
+        /*
+        PON PORTID  ONU   Us_Pkts       Us_bytes          Ds_Pkts       Ds_bytes
+        --- ------ ----- ---------- -------------------- ---------- --------------------
+          0   4093 65535          0                    0          0                    0
+          1    129 65535          0                    0          0                    0
+          2    129 65535          0                    0          0                    0
+          3   4093 65535          0                    0          0                    0
+          5   4093 65535          0                    0          0                    0
+          */
+        // need strip the first line for dcli command result
+        res = res.substring(res.indexOf('\n') + 1)
+
+        this.resultSplit.splitResult(res, CliResFormatMode.CliResFormatTableWithSeparator)
+        let formatOut = this.resultSplit.getTableFormatOut()
+        let output:string[][] = []
+        let filterAttr:string[] = [
+            'PON','PORTID','ONU','Us_Pkts','Us_bytes','Ds_Pkts','Ds_bytes']
+ 
+        for (let ii = 0; ii < formatOut.length; ii++) {
+            let outRecord:string[] = []
+            for (let jj = 0; jj < formatOut[ii].childs.length; jj++) {
+                if (filterAttr.indexOf(formatOut[ii].childs[jj].name) != -1) {
+                    outRecord.push(formatOut[ii].childs[jj].value)
+                }
+            }
+            output.push(outRecord)
+        }
+        // logger.info(JSON.stringify(ontList))
+        return output;              
+    }
 }
 

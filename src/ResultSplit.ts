@@ -463,7 +463,28 @@ export class ResultSplit{
             return -1
         }
         for (let ii = 1; ii < this.splitLines.length; ii++) {
-            let contentColumn = this.splitLines[ii].split(',')
+            let contentColumn:string[] = []
+            // csv output use " " to include multiple "," 
+            if (this.splitLines[ii].indexOf(`"`) != -1) {
+                let fromP = 0
+                do {
+                    let regRet = /".+?"/.exec(this.splitLines[ii].substring(fromP))
+                    if (regRet) {
+                        contentColumn.push(...this.splitLines[ii].substring(fromP, regRet.index -1).split(','))
+                        contentColumn.push(regRet[0])
+                        fromP += regRet.index + regRet[0].length + 1
+                    }else {
+                        contentColumn.push(...this.splitLines[ii].substring(fromP).split(','))
+                        break
+                    }
+                    
+                }while(this.splitLines[ii].indexOf(`"`, fromP))
+
+            }else {
+                contentColumn = this.splitLines[ii].split(',')
+            }
+
+
             if (contentColumn.length != headerColumn.length) {
                 logger.error(`splitResultTableCsvFormat content ${this.splitLines[ii]} invalid`)
                 continue

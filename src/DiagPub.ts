@@ -45,7 +45,8 @@ export interface DiagFlowEgressQos {
     maxParentCos:string
 }
 export interface DiagFlowPortrait {
-    flowId: number
+    flowId: number,
+    key:string,
     ontId: string, 
     ontPort: string,
     match: string[], 
@@ -58,6 +59,7 @@ export interface DiagFlowPortrait {
     oltOutPorts: DiagOltPortPortrait[]
     ingressQos:DiagFlowIngressQos[]
     egressQos:DiagFlowEgressQos[]
+    interPon:number
 }
 
 export interface DiagOntIfPortrait {
@@ -69,6 +71,7 @@ export interface DiagOntIfPortrait {
 
 export interface DiagOntPortrait {
     ontId: string,
+    state:"missing" | "present"
     connPon: string,
     ontOutInterface:DiagOntIfPortrait[],
     ontInInterface:DiagOntIfPortrait[]
@@ -94,11 +97,23 @@ export interface DiagCompose {
     flows:DiagFlowPortrait[]
 }
 
+export interface DiagFlowStats {
+    key:string,
+    usRate:number,
+    dsRate:number
+}
+export interface DiagOntAllFlowStats {
+    ontId:string,
+    flows:DiagFlowStats[]
+}
+
 export enum DiagWSMsgType {
     DiagWSMsgTypeAllOntREQ = 1,
     DiagWSMsgTypeAllOntRES,
     DiagWSMsgTypeOntDiagREQ,
-    DiagWSMsgTypeOntDiagRES 
+    DiagWSMsgTypeOntDiagRES,
+    DiagWSMsgTypeOntFlowStatREQ,
+    DiagWSMsgTypeOntFlowStatRES,    
 }
 
 export interface DiagWSHeader {
@@ -110,10 +125,15 @@ export interface DiagWSMsgAllOntReq {
     ipAddr:string
 }
 
+export interface DiagOntLink {
+    ontId:string,
+    linkPon:string
+}
+
 export interface DiagWSMsgAllOntRes {
     header:DiagWSHeader,
     ipAddr:string,
-    ontList:string[]
+    ontList:DiagOntLink[]
 }
 
 export interface DiagWSMsgOntDiagReq {
@@ -129,3 +149,14 @@ export interface DiagWSMsgOntDiagRes {
     OntCompose?: DiagCompose|null
 }
 
+export interface DiagWSMsgOntFlowStatsReq {
+    header:DiagWSHeader,
+    ipAddr:string
+    ontId:string
+}
+
+export interface DiagWSMsgOntFlowStatsRes {
+    header:DiagWSHeader,
+    ontId:string, 
+    flowStats?:DiagOntAllFlowStats|null
+}
