@@ -33,7 +33,7 @@ export class DiagNode {
 	findChildWithContent(data:string): DiagNode[]{
 		let matchnodes:DiagNode[] = []
 		for (let child of this.children) {
-            if (child.data.indexOf(data) != -1) {
+            if (child.data.trim().indexOf(data) === 0) {
                 matchnodes.push(child)
             }
         }

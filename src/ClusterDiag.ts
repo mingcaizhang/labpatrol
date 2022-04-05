@@ -55,7 +55,7 @@ class ClusterDiag {
                             return
                         }
 
-                        let ontRes = await axosDiag.BuildAllOntsWithLinkinfo()
+                        let ontRes = await axosDiag.semExecBuildAllOntsWithLinkinfo()
                         let msgRes:DiagWSMsgAllOntRes = {
                             header:{cmdId:DiagWSMsgType.DiagWSMsgTypeAllOntRES, resCode:0},
                             ipAddr:allOntReq.ipAddr,
@@ -75,6 +75,7 @@ class ClusterDiag {
                         axosDiag = socketInfo.axosDiag
                     }
                     let ontReq:DiagWSMsgOntDiagReq = header as unknown as DiagWSMsgOntDiagReq
+                    console.log('hanlde DiagWSMsgTypeOntDiagREQ ontID:' + ontReq.ontId)
                     let connRet = await axosDiag.login(ontReq.ipAddr)
                     if (connRet === -1) {
                         let msgRes:DiagWSMsgOntDiagRes = {
@@ -87,7 +88,7 @@ class ClusterDiag {
                         return
                     }
             
-                    let res = await axosDiag.buildOntDiagCompose(ontReq.ontId)
+                    let res = await axosDiag.SemExecBuildOntDiagCompose(ontReq.ontId)
                     let msgRes:DiagWSMsgOntDiagRes = {
                         header:{cmdId:DiagWSMsgType.DiagWSMsgTypeOntDiagRES, resCode:0},
                         ipAddr:ontReq.ipAddr,
@@ -102,14 +103,14 @@ class ClusterDiag {
 
                 case DiagWSMsgType.DiagWSMsgTypeOntFlowStatREQ:
                     {
-                        console.log('hanlde DiagWSMsgTypeOntFlowStatREQ')
+                        
                         let ontReq:DiagWSMsgOntFlowStatsReq = header as unknown as DiagWSMsgOntFlowStatsReq
                         let msgRes:DiagWSMsgOntFlowStatsRes = {
                             header:{cmdId:DiagWSMsgType.DiagWSMsgTypeOntFlowStatRES, resCode:-1},
                             ontId: ontReq.ontId,
                             flowStats:null
                         }
-
+                        console.log('hanlde DiagWSMsgTypeOntFlowStatREQ ontID:' + ontReq.ontId)
                         if (!socketInfo.axosDiag) {
                             logger.error(`DiagWSMsgTypeOntFlowStatREQ no connection before`)
                             socket.send(JSON.stringify(msgRes))

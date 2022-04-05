@@ -5,7 +5,7 @@ import { CliResFormatMode, ResultSplit } from "./ResultSplit"
 import {DiagOltPortPortrait, DiagOltPortrait, DiagOntPortrait, 
         DiagOntIfPortrait, DiagFlowPortrait, DiagCompose,
         DiagFlowIngressQos, DiagOntLink, DiagFlowStats, DiagOntAllFlowStats} from "./DiagPub"
-import { map } from "cheerio/lib/api/traversing"
+import {Semaphore} from "./Semaphore"
 
 enum AXOSCardType {
     AXOSCard_Type_Unknown,
@@ -67,6 +67,7 @@ export class AXOSDiag extends AXOSCard {
     statInterval = 10 // 10 seconds
     ontPortraitMap = new Map<string, OntDiagStatMonitor>()
     maxStatRecord = 10
+    semControl = new Semaphore(1)
     constructor() {
         super()
         this.runningCfg = ''
@@ -235,13 +236,16 @@ export class AXOSDiag extends AXOSCard {
         let cmdRes = await this.execCliCommand(`show  ont ${ontId} linkage`)
         let resLinkState = this.diagOnt.findOntLink(cmdRes)
         let etherPorts: DiagOntIfPortrait[] = []
+        let veipPorts:DiagOntIfPortrait[]=[]
 
         let errRes:DiagOntPortrait = {
             ontId:ontId,
+            profileId:'',
             state:'missing',
             connPon:'',
             ontOutInterface:[],
-            ontInInterface:[]
+            ontInInterface:[],
+            ontVeipInterface:veipPorts
         }
 
         if (resLinkState.length != 0) {
@@ -250,6 +254,14 @@ export class AXOSDiag extends AXOSCard {
             }
         }
         logger.info(`ONT ${ontId} linked ${ontLinked}`)
+
+        cmdRes = await this.execCliCommand(`show running ont ${ontId}`)
+        let profIds = this.diagOnt.findOntProfileId(cmdRes, ontId)
+        let profId = ''
+        if (profIds && profIds[0]) {
+            profId = profIds[0][1]
+        }
+
 
         cmdRes = await this.execCliCommand(`show running interface ont-ethernet ${ontId}/*`)
         let resRole = this.diagOnt.fidnOntEtherRole('', cmdRes)
@@ -279,23 +291,46 @@ export class AXOSDiag extends AXOSCard {
             etherPorts.push(portPortrait)
         }
 
+        cmdRes =  await this.execCliCommand(`show running-config ont-profile ${profId}`)
+        let veip = this.diagOnt.findOntProfilePortInfo(cmdRes, profId, 'full-bridge')
+        let veiptmp = this.diagOnt.findOntProfilePortInfo(cmdRes, profId, 'rg')
+        veip.concat(veiptmp)
+        veiptmp = this.diagOnt.findOntProfilePortInfo(cmdRes, profId, 'rg')
+        veip.concat(veiptmp)
+        
+        for (let oo of veip) {
+            veipPorts.push({
+                ifname: oo[1],
+                veipIf:'',
+                adminState:"enable",
+                operState: 'up'
+            })
+        }
+
+
+
         if (ontLinked === false) {
             let ontReturn:DiagOntPortrait = {
                 ontId: ontId,
+                profileId:profId,
                 state:'missing',
                 connPon:'',
                 ontOutInterface:etherPorts,
-                ontInInterface:[]
+                ontInInterface:[],
+                ontVeipInterface:veipPorts
             }
             return ontReturn
         }
 
+        
         let ontReturn:DiagOntPortrait = {
             ontId: ontId,
+            profileId:profId,
             state: 'missing',
             connPon:'',
             ontOutInterface:etherPorts,
-            ontInInterface:[]
+            ontInInterface:[],
+            ontVeipInterface:veipPorts
         }
 
         cmdRes = await this.execCliCommand(`show  ont ${ontId} status`)
@@ -394,12 +429,19 @@ export class AXOSDiag extends AXOSCard {
             }
         }
     }
+
+    async appendOntVeipInterface(ontPortrait:DiagOntPortrait, flowPortrait:DiagFlowPortrait[]) {
+
+    }
+
     async buildOntFlowPortrait(ontId:string):Promise<DiagFlowPortrait[]>{
         let cmdRes =   await this.execCliCommand(`show running interface ont-ethernet ${ontId}/*`)
         let resSvlan = this.diagOnt.findOntEtherSVlanServ(ontId, cmdRes)
         let resSCvlan = this.diagOnt.findOntEtherSCVlanServ(ontId, cmdRes)
         let etherPortRes = this.diagOnt.fidnOntEtherRole('', cmdRes)
         let etherPorts = etherPortRes.map((a)=>a[0])
+        let resDtagVlan = this.diagOnt.findOntDtagServ(ontId, cmdRes, 'ont-ethernet')
+        
 
 
         cmdRes =   await this.execCliCommand(`show running interface rg ${ontId}/*`)
@@ -407,13 +449,25 @@ export class AXOSDiag extends AXOSCard {
         resSvlan = resSvlan.concat(tmpServ)
         tmpServ = this.diagOnt.findOntSCVlanServ(ontId, cmdRes, 'rg')
         resSCvlan = resSCvlan.concat(tmpServ)
+        tmpServ = this.diagOnt.findOntDtagServ(ontId, cmdRes, 'rg')
+        resDtagVlan.concat(tmpServ)
+
 
         cmdRes =   await this.execCliCommand(`show running interface ont-ua ${ontId}/*`)
         tmpServ = this.diagOnt.findOntSVlanServ(ontId, cmdRes, 'ont-ua')
         resSvlan = resSvlan.concat(tmpServ)
         tmpServ = this.diagOnt.findOntSCVlanServ(ontId, cmdRes, 'ont-ua')
         resSCvlan = resSCvlan.concat(tmpServ)
+        tmpServ = this.diagOnt.findOntDtagServ(ontId, cmdRes, 'ont-ua')
+        resDtagVlan.concat(tmpServ)        
 
+        cmdRes =   await this.execCliCommand(`show running interface full-bridge ${ontId}/*`)
+        tmpServ = this.diagOnt.findOntSVlanServ(ontId, cmdRes, 'full-bridge')
+        resSvlan = resSvlan.concat(tmpServ)
+        tmpServ = this.diagOnt.findOntSCVlanServ(ontId, cmdRes, 'full-bridge')
+        resSCvlan = resSCvlan.concat(tmpServ)
+        tmpServ = this.diagOnt.findOntDtagServ(ontId, cmdRes, 'full-bridge')
+        resDtagVlan.concat(tmpServ)       
 
         let usedPolicyMap = new Set<string>()
         
@@ -425,6 +479,11 @@ export class AXOSDiag extends AXOSCard {
         for (let scvlanSer of resSCvlan) {
             usedPolicyMap.add(scvlanSer[3])
         }
+        for (let dtagSvc of resDtagVlan) {
+            usedPolicyMap.add(dtagSvc[2])
+        }
+
+
         if (usedPolicyMap.size === 0) {
             logger.error('buildOntFlowPortrait no service with policymap created ')
             return []
@@ -630,6 +689,16 @@ export class AXOSDiag extends AXOSCard {
 
         buildFlow(resSvlan, false)
         buildFlow(resSCvlan, true)
+        for (let oo of resDtagVlan) {
+            let dtagvlans = oo[1].split(' ')
+            oo.splice(1,1, dtagvlans[0])
+            oo.splice(2,0, dtagvlans[1])
+        }
+
+        buildFlow(resDtagVlan, true)
+
+        // Dtag service follow SC servcie
+
 
         // append 'i' to the ont-ua 
         for (let flow of flowList) {
@@ -701,6 +770,9 @@ export class AXOSDiag extends AXOSCard {
         return oltPortraitList
     }
 
+    async semExecOntFlowsStatCollect(ontDiag:OntDiagStatMonitor, that:AXOSDiag) {
+        return await that.semControl.callFunction(that.OntFlowsStatCollect, ontDiag, that)
+    }
     // callback of the stats interval , can not use this 
     async OntFlowsStatCollect(ontDiag:OntDiagStatMonitor, that:AXOSDiag) {
         for (let flow of ontDiag.diagCom.flows) {
@@ -735,6 +807,13 @@ export class AXOSDiag extends AXOSCard {
         
     }
 
+    async SemExecBuildOntDiagCompose(ontId:string) {
+        if (this.statInterval) {
+            clearInterval(this.statInterval)
+        }
+        return await this.semControl.callFunction(this.buildOntDiagCompose.bind(this), ontId)
+  
+    }
     async buildOntDiagCompose(OntId:string) {
         let that = this
         let res = await this.buildOltPortrait()
@@ -764,7 +843,7 @@ export class AXOSDiag extends AXOSCard {
                 flowStats: new  Map<string, FlowStat>()
             }
             this.ontPortraitMap.set(OntId, ontMointor)    
-            ontMointor.intervalHandler = setInterval(that.OntFlowsStatCollect, that.statInterval*1000, ontMointor, that)
+            ontMointor.intervalHandler = setInterval(that.semExecOntFlowsStatCollect, that.statInterval*1000, ontMointor, that)
         }
 
 
@@ -833,6 +912,11 @@ export class AXOSDiag extends AXOSCard {
         return ret
     }
 
+    async semExecBuildAllOntsWithLinkinfo():Promise<DiagOntLink[]>{
+        let ret = this.semControl.callFunction(this.BuildAllOntsWithLinkinfo.bind(this))
+        return ret as DiagOntLink[]
+    }
+
     async BuildAllOntsWithLinkinfo():Promise<DiagOntLink[]> {
         let cmdRes = await this.execCliCommand('show running-config ont')
         let ontRes = this.diagOnt.findOnt(cmdRes)
@@ -840,7 +924,8 @@ export class AXOSDiag extends AXOSCard {
         for (let ont of ontRes) {
             ret.push({
                 ontId:ont[0],
-                linkPon:''
+                linkPon:'',
+                state:'missing'
             })
         }
 
@@ -856,6 +941,19 @@ export class AXOSDiag extends AXOSCard {
                 }
             }
         }
+
+        cmdRes = await this.execCliCommand('show discovered-onts|csv')
+        let ontDiscovers = await this.diagOnt.findDiscoverOnts(cmdRes)
+        for (let ontDis of ontDiscovers) {
+            let ontId = ontDis[5] 
+            
+            for (let ont of ret) {
+                if (ont.ontId === ontId) {
+                    ont.state = 'present'
+                    break
+                }
+            }
+        }       
        
         ret = ret.sort((a:DiagOntLink,b:DiagOntLink)=>{
             if (a.linkPon === '') {
@@ -911,7 +1009,8 @@ export class AXOSDiag extends AXOSCard {
         }
         let usBytes = 0, dsBytes = 0
         let usPkts = 0, dsPkts = 0
-        if (cardInfo.cardType === AXOSCardType.AXOSCard_Type_E3Combi || AXOSCardType.AXOSCard_Type_XG801) {
+        // ASPEN card
+        if (cardInfo.cardType === AXOSCardType.AXOSCard_Type_E3Combi || cardInfo.cardType === AXOSCardType.AXOSCard_Type_XG801) {
             cmdRes = await this.execShellCommand(`dcli olttcmgrd aspen gem stats show pon ${flow.interPon} start_gem ${flow.gemId[0]} count ${flow.gemId.length}`, flowPos)
             if (cmdRes != -1) {
                 let gemStats = this.diagOnt.findAspenGemStats(cmdRes)
@@ -923,6 +1022,26 @@ export class AXOSDiag extends AXOSCard {
                     dsPkts += parseInt(gemStat[5])
                 }
             }
+        }else {
+            cmdRes = await this.execShellCommand(`dcli olttcmgrd -- te uspid  show  -count  ${flow.gemId.length} ${flow.interPon} ${flow.gemId[0]} `, flowPos)
+            if (cmdRes != -1) {
+                let gemStats = this.diagOnt.findFpgaGemStats(cmdRes)
+
+                for (let gemStat of gemStats) {
+                    usBytes += parseInt(gemStat[2])
+                    usPkts += parseInt(gemStat[3]) + parseInt(gemStat[4]) + parseInt(gemStat[5])
+                }
+            }
+            cmdRes = await this.execShellCommand(`dcli olttcmgrd -- te dspid  show  -count  ${flow.gemId.length} ${flow.interPon} ${flow.gemId[0]} `, flowPos)
+            if (cmdRes != -1) {
+                let gemStats = this.diagOnt.findFpgaGemStats(cmdRes)
+
+                for (let gemStat of gemStats) {
+                    dsBytes += parseInt(gemStat[2])
+                    dsPkts += parseInt(gemStat[3]) + parseInt(gemStat[4]) + parseInt(gemStat[5])
+                }
+            }
+
         }
 
         return <GemStats>{
@@ -979,7 +1098,7 @@ export class AXOSDiag extends AXOSCard {
 if (__filename === require.main?.filename) {
     (async()=>{
         let axosDiag = new AXOSDiag()
-        let ret = await axosDiag.login('10.245.26.40')
+        let ret = await axosDiag.login('10.245.66.134')
         console.log(ret)
         logger.setLogLevel('std', 'error')
         logger.setLogLevel('file', 'info')
@@ -1003,8 +1122,17 @@ if (__filename === require.main?.filename) {
         // console.log(JSON.stringify(res2))
 
         // await axosDiag.parseOntTidPidMap('836')
-        let res = await axosDiag.buildOntDiagCompose('x1101')
+        // let res = await axosDiag.buildOntDiagCompose('x1101')
+        // console.log(JSON.stringify(res))
+
+        // let res =  axosDiag.semExecBuildAllOntsWithLinkinfo()
+        // console.log(res)
+        let res 
+        res =  await axosDiag.SemExecBuildOntDiagCompose('szang_xgs');
         console.log(JSON.stringify(res))
+
+        // axosDiag.semExecBuildAllOntsWithLinkinfo()
+        // console.log(res)     
         // let rc = await axosDiag.execShellCommand('dcli olttcmgrd aspen gem stats show pon 7 start_gem 1028 count 1', '1/2')
         // rc = await axosDiag.execShellCommand('dcli olttcmgrd aspen gem stats show pon 7 start_gem 1028 count 8', '1/2')
         // console.log(rc)

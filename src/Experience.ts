@@ -1,4 +1,5 @@
 
+import {Semaphore} from "./Semaphore"
 let map1 = new Map<number, string>()
 map1.set(1, "abc")
 console.log(map1)
@@ -117,3 +118,44 @@ for (let index of Object.keys(array1)) {
   console.log(index)
 }
 
+
+(async function(){
+  const throttler = new Semaphore(1);
+  let ret 
+   ret = await throttler.callFunction(()=>{
+    return new Promise((resolve)=>{
+      console.log('time 1 start')
+      setTimeout(()=>{
+        console.log('time 1 finish')
+        resolve(1)
+      }, 5000)
+      
+    })
+
+  })
+  console.log(ret)
+  ret = await  throttler.callFunction(()=>{
+    return new Promise((resolve)=>{
+      console.log('time 2 start')
+      setTimeout(()=>{
+        console.log('time 2 finish')
+        resolve(2)
+      }, 5000)
+
+    })
+
+  })
+  console.log(ret)
+  ret = await throttler.callFunction(()=>{
+    return new Promise((resolve)=>{
+      console.log('time 3 start')
+      setTimeout(()=>{
+        console.log('time 3 finish')
+        resolve(3)
+      }, 5000)
+
+    })
+
+  })
+  console.log(ret)
+}())

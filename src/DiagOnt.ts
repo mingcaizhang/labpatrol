@@ -78,6 +78,24 @@ export class DiagOnt {
         return filtRes
     }
 
+    /* [["836/g1","1021 22","add-s-untag"]] */
+    findOntDtagServ(ontId:string='', cfg:string='', portType:string):string[][] {
+        let diagGrade 
+        if (cfg != '') {
+            diagGrade = new DiagGradeParse()
+            diagGrade.setParseStr(cfg)
+        }else {
+            diagGrade = this.diagGrade
+        }
+
+        let pathResult = diagGrade.retriveParseNode([[{prefix:`interface ${portType}`, value:ontId}], [{prefix:"dtag-vlan", value:""}],
+             [{prefix:"policy-map", value:""}]])
+        let filtRes = diagGrade.getItemValueFromPath(pathResult, [`interface ${portType}`, "dtag-vlan", "policy-map"])
+
+        return filtRes
+    }
+
+
     findOntSVlanServ(ontId:string='', cfg:string='', portType:string) {
         let diagGrade 
         if (cfg != '') {
@@ -434,6 +452,31 @@ export class DiagOnt {
         return output;       
     }
 
+    findDiscoverOnts(res:string):string[][] {
+        /* 
+        VENDOR ID,SERIAL NUMBER,SHELF ID,SLOT ID,PORT,ONT ID,REG ID,MODEL,CURR VERSION,ONU MAC ADDR,CLEI,ALT VERSION,CURR COMMITTED,MTA MAC ADDR,PRODUCT CODE
+        CXNK,11000010,1,1,xp1,844GE,-,844GE,8.0.z.42,00:91:10:00:0a:00,SIM844GE,7.0.z.99,true,00:91:10:00:0a:01,P0        
+        */
+
+        this.resultSplit.splitResult(res, CliResFormatMode.CliResFormatTableCsv)
+        let formatOut = this.resultSplit.getTableFormatOut()
+        let output:string[][] = []
+        let filterAttr:string[] = [
+            'VENDOR ID','SERIAL NUMBER','SHELF ID','SLOT ID','PORT','ONT ID','REG ID','MODEL','CURR VERSION','ONU MAC ADDR','CLEI','ALT VERSION','CURR COMMITTED','MTA MAC ADDR','PRODUCT CODE']
+ 
+        for (let ii = 0; ii < formatOut.length; ii++) {
+            let outRecord:string[] = []
+            for (let jj = 0; jj < formatOut[ii].childs.length; jj++) {
+                if (filterAttr.indexOf(formatOut[ii].childs[jj].name) != -1) {
+                    outRecord.push(formatOut[ii].childs[jj].value)
+                }
+            }
+            output.push(outRecord)
+        }
+        // logger.info(JSON.stringify(ontList))
+        return output;       
+    }
+
     findAspenGemStats(res:string):string[][] {
         /*
         PON PORTID  ONU   Us_Pkts       Us_bytes          Ds_Pkts       Ds_bytes
@@ -465,5 +508,64 @@ export class DiagOnt {
         // logger.info(JSON.stringify(ontList))
         return output;              
     }
+
+    findFpgaGemStats(res:string):string[][] {
+        /*
+         PON  PID   Byte Count     UC Pkts     BC Pkts    MC Pkts   Drop Pkts Snoop Pkts
+        ---- ---- ------------- ------------ ---------- ---------- ---------- ----------
+        1 1076         63128          994        233        184          0          0
+          */
+        // need strip the first line for dcli command result
+        res = res.substring(res.indexOf('\n') + 1)
+
+        this.resultSplit.splitResult(res, CliResFormatMode.CliResFormatTableWithSeparator)
+        let formatOut = this.resultSplit.getTableFormatOut()
+        let output:string[][] = []
+        let filterAttr:string[] = [
+            'PON','PID','Byte Count','UC Pkts','BC Pkts','MC Pkts','Drop Pkts','Snoop Pkts']
+ 
+        for (let ii = 0; ii < formatOut.length; ii++) {
+            let outRecord:string[] = []
+            for (let jj = 0; jj < formatOut[ii].childs.length; jj++) {
+                if (filterAttr.indexOf(formatOut[ii].childs[jj].name) != -1) {
+                    outRecord.push(formatOut[ii].childs[jj].value)
+                }
+            }
+            output.push(outRecord)
+        }
+        // logger.info(JSON.stringify(ontList))
+        return output;              
+    }
+
+    findOntProfileId(cfg:string, ontId:string):string[][] {
+        let diagGrade 
+        if (cfg != '') {
+            diagGrade = new DiagGradeParse()
+            diagGrade.setParseStr(cfg)
+        }else {
+            diagGrade = this.diagGrade
+        }
+
+        let pathResult = diagGrade.retriveParseNode([[{prefix:"ont", value:ontId}], [{prefix:"profile-id", value:""}]])
+        let filtRes = diagGrade.getItemValueFromPath(pathResult, ['ont', "profile-id"])
+
+        return filtRes
+    }
+
+    findOntProfilePortInfo(cfg:string, profile:string, portType:string):string[][] {
+        let diagGrade 
+        if (cfg != '') {
+            diagGrade = new DiagGradeParse()
+            diagGrade.setParseStr(cfg)
+        }else {
+            diagGrade = this.diagGrade
+        }
+
+        let pathResult = diagGrade.retriveParseNode([[{prefix:"ont-profile", value:profile}], [{prefix:`interface ${portType}`, value:""}]])
+        let filtRes = diagGrade.getItemValueFromPath(pathResult, ['ont-profile', `interface ${portType}`])
+
+        return filtRes
+    }
+
 }
 
