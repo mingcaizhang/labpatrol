@@ -53,7 +53,7 @@ type FlowHistStat = Map<string, FlowStat>
 
 interface OntDiagStatMonitor {
     diagCom:DiagCompose
-    intervalHandler:NodeJS.Timer,
+    intervalHandler:NodeJS.Timer|undefined,
     flowStats:FlowHistStat,
 }
 
@@ -74,10 +74,19 @@ export class AXOSDiag extends AXOSCard {
         this.diagOnt = new DiagOnt()
     }
 
+    async semExecLogin(ipAddr:string) {
+        return this.semControl.callFunction(this.login.bind(this), ipAddr)
+    }
+
     async login(ipAddr:string):Promise<number> {
         if (this.connectIp === ipAddr) {
             return 0
         }
+
+        if (this.invesClient) {
+            await this.disconnect()
+        }
+
         this.connectIp = ipAddr
         let res = await this.connect(ipAddr)
         if (res === -1) {
@@ -808,8 +817,11 @@ export class AXOSDiag extends AXOSCard {
     }
 
     async SemExecBuildOntDiagCompose(ontId:string) {
-        if (this.statInterval) {
-            clearInterval(this.statInterval)
+        for (let oo of this.ontPortraitMap.values()) {
+            if (oo.intervalHandler) {
+                clearInterval(oo.intervalHandler)
+                oo.intervalHandler = undefined
+            }
         }
         return await this.semControl.callFunction(this.buildOntDiagCompose.bind(this), ontId)
   
