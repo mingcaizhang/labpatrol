@@ -142,7 +142,9 @@ export interface DiagWSMsgAllOntRes {
 export interface DiagWSMsgOntDiagReq {
     header:DiagWSHeader,
     ipAddr:string
-    ontId:string
+    ontId:string,
+    forceOlt:boolean,
+    forceOnt:boolean
 }
 
 export interface DiagWSMsgOntDiagRes {

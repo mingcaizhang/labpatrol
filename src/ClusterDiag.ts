@@ -3,7 +3,7 @@ import logger from './logger';
 import {AXOSDiag} from "./AXOSDiag"
 import {DiagWSHeader, DiagWSMsgType, DiagWSMsgAllOntReq, DiagWSMsgAllOntRes, 
         DiagWSMsgOntDiagReq, DiagWSMsgOntDiagRes,DiagOntAllFlowStats,
-        DiagWSMsgOntFlowStatsReq, DiagWSMsgOntFlowStatsRes} from "./DiagPub"
+        DiagWSMsgOntFlowStatsReq, DiagWSMsgOntFlowStatsRes, DiagOntLink} from "./DiagPub"
 
 logger.setLogLevel('std', 'error')
 logger.setLogLevel('file', 'info')
@@ -11,7 +11,8 @@ logger.closeStdout();
 
 interface DiagSocketInfo {
     socket: WS.WebSocket
-    axosDiag:AXOSDiag
+    axosDiag:AXOSDiag,
+    clientIP:string
 }
 class ClusterDiag {
     wsServerPort: number = 8082
@@ -19,20 +20,19 @@ class ClusterDiag {
     init() {
         const server = new WS.Server({port:this.wsServerPort});
         let that = this
-        server.on('connection', function(socket) {
-          console.log('receive connection')
-          let socketInfo = <DiagSocketInfo>{socket:socket}
+        server.on('connection', function(socket, req) {
+          let socketInfo = <DiagSocketInfo>{socket:socket, clientIP:req.socket.remoteAddress}
           that.sockets.push(socketInfo)
           // When you receive a message, send that message to every socket.
           socket.on('message', async function(msg) {
             // that.sockets.forEach(s => s.send(msg));
-            logger.info(msg.toString())
+            logger.info(socketInfo.clientIP + ' : ' + msg.toString())
             let header = JSON.parse(msg.toString())
             
             switch(header.header.cmdId) {
                 case DiagWSMsgType.DiagWSMsgTypeAllOntREQ:
                     {
-                        console.log('hanlde DiagWSMsgTypeAllOntREQ')
+                        
                         let axosDiag:AXOSDiag
                         if (!socketInfo.axosDiag) {
                             axosDiag = new AXOSDiag()
@@ -42,7 +42,8 @@ class ClusterDiag {
                         }
                         
                         let allOntReq:DiagWSMsgAllOntReq= header as unknown as DiagWSMsgAllOntReq
-                        let connRet = await axosDiag.login(allOntReq.ipAddr)
+                        console.log(`hanlde DiagWSMsgTypeAllOntREQ ip: ${socketInfo.clientIP} `)
+                        let connRet = await axosDiag.semExecLogin(allOntReq.ipAddr)
                         if (connRet === -1) {
                             let msgRes:DiagWSMsgAllOntRes = {
                                 header:{cmdId:DiagWSMsgType.DiagWSMsgTypeAllOntRES, resCode:-1},
@@ -56,11 +57,21 @@ class ClusterDiag {
                         }
 
                         let ontRes = await axosDiag.semExecBuildAllOntsWithLinkinfo()
-                        let msgRes:DiagWSMsgAllOntRes = {
-                            header:{cmdId:DiagWSMsgType.DiagWSMsgTypeAllOntRES, resCode:0},
-                            ipAddr:allOntReq.ipAddr,
-                            ontList:[...ontRes]
+                        let msgRes
+                        if (ontRes === -1) {
+                            msgRes = <DiagWSMsgAllOntRes> {
+                                header:{cmdId:DiagWSMsgType.DiagWSMsgTypeAllOntRES, resCode:-1},
+                                ipAddr:allOntReq.ipAddr,
+                                ontList:[]
+                            }
+                        }else {
+                            msgRes = <DiagWSMsgAllOntRes>  {
+                                header:{cmdId:DiagWSMsgType.DiagWSMsgTypeAllOntRES, resCode:0},
+                                ipAddr:allOntReq.ipAddr,
+                                ontList:[...(ontRes as DiagOntLink[])]
+                            }
                         }
+
                         console.log(ontRes)
                         socket.send(JSON.stringify(msgRes))           
                     }
@@ -74,9 +85,10 @@ class ClusterDiag {
                     }else {
                         axosDiag = socketInfo.axosDiag
                     }
+                    
                     let ontReq:DiagWSMsgOntDiagReq = header as unknown as DiagWSMsgOntDiagReq
-                    console.log('hanlde DiagWSMsgTypeOntDiagREQ ontID:' + ontReq.ontId)
-                    let connRet = await axosDiag.login(ontReq.ipAddr)
+                    console.log(`hanlde DiagWSMsgTypeOntDiagREQ IP:${socketInfo.clientIP} ontID:` + ontReq.ontId)
+                    let connRet = await  axosDiag.semExecLogin(ontReq.ipAddr)
                     if (connRet === -1) {
                         let msgRes:DiagWSMsgOntDiagRes = {
                             header:{cmdId:DiagWSMsgType.DiagWSMsgTypeOntDiagRES, resCode:-1},
@@ -88,12 +100,22 @@ class ClusterDiag {
                         return
                     }
             
-                    let res = await axosDiag.SemExecBuildOntDiagCompose(ontReq.ontId)
-                    let msgRes:DiagWSMsgOntDiagRes = {
-                        header:{cmdId:DiagWSMsgType.DiagWSMsgTypeOntDiagRES, resCode:0},
-                        ipAddr:ontReq.ipAddr,
-                        ontId: ontReq.ontId,
-                        OntCompose:res
+                    let res = await axosDiag.SemExecBuildOntDiagCompose(ontReq.ontId, ontReq.forceOlt, ontReq.forceOnt)
+                    let msgRes
+                    if (res === -1) {
+                        msgRes = <DiagWSMsgOntDiagRes> {
+                            header:{cmdId:DiagWSMsgType.DiagWSMsgTypeOntDiagRES, resCode:-1},
+                            ipAddr:ontReq.ipAddr,
+                            ontId: ontReq.ontId,
+                            OntCompose:null
+                        }
+                    }else {
+                        msgRes = <DiagWSMsgOntDiagRes> {
+                            header:{cmdId:DiagWSMsgType.DiagWSMsgTypeOntDiagRES, resCode:0},
+                            ipAddr:ontReq.ipAddr,
+                            ontId: ontReq.ontId,
+                            OntCompose:res
+                        }
                     }
                     // console.log(JSON.stringify(msgRes))
                     socket.send(JSON.stringify(msgRes))
@@ -110,7 +132,7 @@ class ClusterDiag {
                             ontId: ontReq.ontId,
                             flowStats:null
                         }
-                        console.log('hanlde DiagWSMsgTypeOntFlowStatREQ ontID:' + ontReq.ontId)
+                        console.log(`hanlde DiagWSMsgTypeOntFlowStatREQ IP:${socketInfo.clientIP} ontID:` + ontReq.ontId)
                         if (!socketInfo.axosDiag) {
                             logger.error(`DiagWSMsgTypeOntFlowStatREQ no connection before`)
                             socket.send(JSON.stringify(msgRes))

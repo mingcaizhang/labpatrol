@@ -53,7 +53,7 @@ type FlowHistStat = Map<string, FlowStat>
 
 interface OntDiagStatMonitor {
     diagCom:DiagCompose
-    intervalHandler:NodeJS.Timer|undefined,
+    intervalHandler:NodeJS.Timeout|undefined,
     flowStats:FlowHistStat,
 }
 
@@ -68,14 +68,22 @@ export class AXOSDiag extends AXOSCard {
     ontPortraitMap = new Map<string, OntDiagStatMonitor>()
     maxStatRecord = 10
     semControl = new Semaphore(1)
+    oltPortraitCache:DiagOltPortrait[]|undefined= undefined
+    classMapCache:string[][] = []
+    policymapCache:string[][] = []
     constructor() {
         super()
         this.runningCfg = ''
         this.diagOnt = new DiagOnt()
     }
 
-    async semExecLogin(ipAddr:string) {
-        return this.semControl.callFunction(this.login.bind(this), ipAddr)
+    async semExecLogin(ipAddr:string):Promise<number> {
+        try {
+            return await this.semControl.callFunction(this.login.bind(this), ipAddr)
+        }catch(e) {
+            logger.error(e)
+        }
+        return -1
     }
 
     async login(ipAddr:string):Promise<number> {
@@ -109,6 +117,9 @@ export class AXOSDiag extends AXOSCard {
             }
         }
         this.ontPortraitMap.clear()
+        this.oltPortraitCache = undefined
+        this.classMapCache = []
+        this.policymapCache = []
     }
 
     async execCliCommand(cmd:string, cmdTimeOut:number=20000):Promise<string> {
@@ -240,7 +251,7 @@ export class AXOSDiag extends AXOSCard {
     }
 
     
-    async buildOntPortrait(ontId:string):Promise<DiagOntPortrait> {
+    async buildOntPortrait(ontId:string, forceOlt:boolean = false):Promise<DiagOntPortrait> {
         let ontLinked = false
         let cmdRes = await this.execCliCommand(`show  ont ${ontId} linkage`)
         let resLinkState = this.diagOnt.findOntLink(cmdRes)
@@ -443,7 +454,7 @@ export class AXOSDiag extends AXOSCard {
 
     }
 
-    async buildOntFlowPortrait(ontId:string):Promise<DiagFlowPortrait[]>{
+    async buildOntFlowPortrait(ontId:string, forceOlt:boolean = false):Promise<DiagFlowPortrait[]>{
         let cmdRes =   await this.execCliCommand(`show running interface ont-ethernet ${ontId}/*`)
         let resSvlan = this.diagOnt.findOntEtherSVlanServ(ontId, cmdRes)
         let resSCvlan = this.diagOnt.findOntEtherSCVlanServ(ontId, cmdRes)
@@ -497,15 +508,20 @@ export class AXOSDiag extends AXOSCard {
             logger.error('buildOntFlowPortrait no service with policymap created ')
             return []
         }
-        // find all the policymap and classmap
-        cmdRes = await this.execCliCommand(`show running policy-map`, 20000)
-        let resPolicyClassMap = this.diagOnt.findPolicyMapEthClassMap(cmdRes)
 
-        cmdRes = await this.execCliCommand('show running-config class-map ethernet', 20000)
-        let resClassmap = this.diagOnt.findClassMapEtherRule('', cmdRes)
+
+        if (forceOlt || this.policymapCache.length === 0 || this.classMapCache.length === 0) {
+            cmdRes = await this.execCliCommand(`show running policy-map`, 20000)
+            this.policymapCache  = this.diagOnt.findPolicyMapEthClassMap(cmdRes)
+
+            cmdRes = await this.execCliCommand('show running-config class-map ethernet', 20000)
+            this.classMapCache  = this.diagOnt.findClassMapEtherRule('', cmdRes)
+
+        }
+        // find all the policymap and classmap
 
         let findClasMap= (policy:string):string=>{
-            for (let oo of resPolicyClassMap) {
+            for (let oo of this.policymapCache) {
                 if (oo[0] === policy) {
                     return oo[1]
                 }
@@ -515,7 +531,7 @@ export class AXOSDiag extends AXOSCard {
 
         let findRule=(classMap:string):string[]=>{
             let res:string[] = []
-            for (let oo of resClassmap) {
+            for (let oo of this.classMapCache) {
                 if (oo[0] === classMap) {
                     let regex = /(\d+)/
                     res.push(oo[2].replace(regex, '').replace('match','').trim())
@@ -539,7 +555,6 @@ export class AXOSDiag extends AXOSCard {
             }
             return []
         }
-
 
         let vlanPortsMap = await this.buildAllVlanOutPorts()
         let vlanPortsPortraitMap = new Map<number, DiagOltPortPortrait[]>()
@@ -780,7 +795,11 @@ export class AXOSDiag extends AXOSCard {
     }
 
     async semExecOntFlowsStatCollect(ontDiag:OntDiagStatMonitor, that:AXOSDiag) {
-        return await that.semControl.callFunction(that.OntFlowsStatCollect, ontDiag, that)
+        try {
+            await that.semControl.callFunction(that.OntFlowsStatCollect, ontDiag, that)
+        }catch(e) {
+            logger.error(e)
+        }
     }
     // callback of the stats interval , can not use this 
     async OntFlowsStatCollect(ontDiag:OntDiagStatMonitor, that:AXOSDiag) {
@@ -816,48 +835,67 @@ export class AXOSDiag extends AXOSCard {
         
     }
 
-    async SemExecBuildOntDiagCompose(ontId:string) {
+    async SemExecBuildOntDiagCompose(ontId:string, forceOlt:boolean = false, forceOnt:boolean = true) {
         for (let oo of this.ontPortraitMap.values()) {
             if (oo.intervalHandler) {
                 clearInterval(oo.intervalHandler)
                 oo.intervalHandler = undefined
             }
         }
-        return await this.semControl.callFunction(this.buildOntDiagCompose.bind(this), ontId)
-  
-    }
-    async buildOntDiagCompose(OntId:string) {
-        let that = this
-        let res = await this.buildOltPortrait()
-
-        let res1 = await this.buildOntPortrait(OntId)
-
-        let res2 = await this.buildOntFlowPortrait(OntId)
-        await this.appendOntInterInterface(res1, res2)
-
-        // update the flow PON port 
-        for (let flow of res2) {
-            flow.oltPonPort = res1.connPon 
+        let rc
+        try {
+            rc = await this.semControl.callFunction(this.buildOntDiagCompose.bind(this), ontId, forceOlt, forceOnt)
+        }catch(e) {
+            logger.error(e)
+            return -1
         }
-        let diagCompose:DiagCompose ={
-            olts:res,
-            ont:res1,
-            flows:res2
+        return rc
+    }
+    async buildOntDiagCompose(OntId:string, forceOlt:boolean = false, forceOnt:boolean = true) {
+        let that = this
+        let res 
+        if (forceOlt === true || !this.oltPortraitCache || this.oltPortraitCache.length === 0) {
+            res = await this.buildOltPortrait()
+            this.oltPortraitCache = res
+        }else {
+            res = this.oltPortraitCache
+        }
+        let diagCompose
+        if (forceOnt || !this.ontPortraitMap.has(OntId)) {
+            let res1 = await this.buildOntPortrait(OntId, forceOlt)
+
+            let res2 = await this.buildOntFlowPortrait(OntId, forceOlt)
+            await this.appendOntInterInterface(res1, res2)
+            
+            // update the flow PON port 
+            for (let flow of res2) {
+                flow.oltPonPort = res1.connPon 
+            }
+            diagCompose = <DiagCompose>{
+                olts:res,
+                ont:res1,
+                flows:res2
+            }
+        }else {
+            diagCompose = this.ontPortraitMap.get(OntId)?.diagCom
         }
 
         let item = this.ontPortraitMap.get(OntId)
         if (item) {
-            item.diagCom = diagCompose
+            item.diagCom = diagCompose as DiagCompose
         }else {
             let ontMointor:OntDiagStatMonitor = {
-                diagCom:diagCompose,
-                intervalHandler:<NodeJS.Timer>{},
+                diagCom:diagCompose as DiagCompose,
+                intervalHandler: undefined,
                 flowStats: new  Map<string, FlowStat>()
             }
             this.ontPortraitMap.set(OntId, ontMointor)    
-            ontMointor.intervalHandler = setInterval(that.semExecOntFlowsStatCollect, that.statInterval*1000, ontMointor, that)
+            // ontMointor.intervalHandler = setInterval(that.semExecOntFlowsStatCollect, that.statInterval*1000, ontMointor, that)
         }
-
+        item = this.ontPortraitMap.get(OntId)
+        if (item) {
+            item.intervalHandler = setInterval(that.semExecOntFlowsStatCollect, that.statInterval*1000, item, that)
+        }
 
         return diagCompose
     }
@@ -924,9 +962,14 @@ export class AXOSDiag extends AXOSCard {
         return ret
     }
 
-    async semExecBuildAllOntsWithLinkinfo():Promise<DiagOntLink[]>{
-        let ret = this.semControl.callFunction(this.BuildAllOntsWithLinkinfo.bind(this))
-        return ret as DiagOntLink[]
+    async semExecBuildAllOntsWithLinkinfo():Promise<DiagOntLink[]|number>{
+        try {
+            let ret = this.semControl.callFunction(this.BuildAllOntsWithLinkinfo.bind(this))
+            return ret as DiagOntLink[]
+        }catch (e) {
+            logger.error(e)
+        }
+        return -1
     }
 
     async BuildAllOntsWithLinkinfo():Promise<DiagOntLink[]> {
