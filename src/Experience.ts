@@ -1,6 +1,8 @@
 
 import {Semaphore} from "./Semaphore"
+import {Client} from "netconf"
 let map1 = new Map<number, string>()
+import * as fs from 'fs'
 map1.set(1, "abc")
 console.log(map1)
 
@@ -119,43 +121,90 @@ for (let index of Object.keys(array1)) {
 }
 
 
-(async function(){
-  const throttler = new Semaphore(1);
-  let ret 
-   ret = await throttler.callFunction(()=>{
-    return new Promise((resolve)=>{
-      console.log('time 1 start')
-      setTimeout(()=>{
-        console.log('time 1 finish')
-        resolve(1)
-      }, 5000)
-      
+if (0) {
+  (async function(){
+    const throttler = new Semaphore(1);
+    let ret 
+     ret = await throttler.callFunction(()=>{
+      return new Promise((resolve)=>{
+        console.log('time 1 start')
+        setTimeout(()=>{
+          console.log('time 1 finish')
+          resolve(1)
+        }, 5000)
+        
+      })
+  
     })
-
-  })
-  console.log(ret)
-  ret = await  throttler.callFunction(()=>{
-    return new Promise((resolve)=>{
-      console.log('time 2 start')
-      setTimeout(()=>{
-        console.log('time 2 finish')
-        resolve(2)
-      }, 5000)
-
+    console.log(ret)
+    ret = await  throttler.callFunction(()=>{
+      return new Promise((resolve)=>{
+        console.log('time 2 start')
+        setTimeout(()=>{
+          console.log('time 2 finish')
+          resolve(2)
+        }, 5000)
+  
+      })
+  
     })
-
-  })
-  console.log(ret)
-  ret = await throttler.callFunction(()=>{
-    return new Promise((resolve)=>{
-      console.log('time 3 start')
-      setTimeout(()=>{
-        console.log('time 3 finish')
-        resolve(3)
-      }, 5000)
-
+    console.log(ret)
+    ret = await throttler.callFunction(()=>{
+      return new Promise((resolve)=>{
+        console.log('time 3 start')
+        setTimeout(()=>{
+          console.log('time 3 finish')
+          resolve(3)
+        }, 5000)
+  
+      })
+  
     })
+    console.log(ret)
+  }())
+  
+}
 
-  })
-  console.log(ret)
-}())
+
+if (0) {
+  (async ()=>{
+    const router = new Client({
+      host: '10.245.34.156',
+      port: 830,
+      username: 'root',
+      password:'root'
+  })   
+
+  router.open((err) => {
+    if (err) {
+        throw err;
+    }
+
+    console.log('route connected')
+})
+
+
+  })()
+
+
+}
+
+
+let buf = fs.readFileSync('C:\\work\\debugbuf.txt')
+console.log(buf)
+let str = buf.toString()
+
+// str.replace('\r\n', '')
+let strLines = str.split('\r\n')
+
+
+for (let strLine of strLines) {
+  console.log(Buffer.from(strLine, 'hex').toString())
+}
+
+
+// console.log(str)
+// console.log(Buffer.from(str, 'hex').toString())
+
+
+

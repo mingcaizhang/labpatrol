@@ -857,20 +857,24 @@ if (__filename === require.main?.filename) {
 
         // let res = await axosCard.checkLldpNeighbor('10.245.34.156')
         // console.log(res)
-        let cmdList = ['/log/id_set_t index=9 log_type=print',
-        '/sub/ object=onu olt_id=0 indication=omci_packet subscribe=off',
-        '/Subscribe_ind object=onu olt_id=0 indication=rei subscribe=off',
-        '/Subscribe_ind object=pon_interface olt_id=0 indication=itu_rogue_detection_completed  subscribe=off',
-        '/Subscribe_ind object=onu olt_id=0 indication=rssi_measurement_completed subscribe=off',
-         '/Subscribe_ind object=onu olt_id=0 indication=invalid_dbru_report subscribe=off',
-         '/Subscribe_ind object=onu olt_id=0 indication=onu_activation_completed subscribe=off',
-         '/Subscribe_ind object=onu olt_id=0 indication=ranging_completed subscribe=off',
-         '/Subscribe_ind object=onu olt_id=0 indication=onu_deactivation_completed subscribe=off',
-         '/Subscribe_ind object=onu olt_id=0 indication=key_exchange_completed subscribe=off']
-        // await AXOSCard.execAspenShell({ipAddr:'10.245.51.35', slot:2, state:'init'}, cmdList)
-        // await AXOSCard.execAspenShell({ipAddr:'10.245.34.156', slot:1, state:'init'}, cmdList)
-        await AXOSCard.execAspenShell({ipAddr:'10.245.48.28', slot:1, state:'init'}, cmdList)
+        // let cmdList = ['/log/id_set_t index=9 log_type=print',
+        // '/sub/ object=onu olt_id=0 indication=omci_packet subscribe=off',
+        // '/Subscribe_ind object=onu olt_id=0 indication=rei subscribe=off',
+        // '/Subscribe_ind object=pon_interface olt_id=0 indication=itu_rogue_detection_completed  subscribe=off',
+        // '/Subscribe_ind object=onu olt_id=0 indication=rssi_measurement_completed subscribe=off',
+        //  '/Subscribe_ind object=onu olt_id=0 indication=invalid_dbru_report subscribe=off',
+        //  '/Subscribe_ind object=onu olt_id=0 indication=onu_activation_completed subscribe=off',
+        //  '/Subscribe_ind object=onu olt_id=0 indication=ranging_completed subscribe=off',
+        //  '/Subscribe_ind object=onu olt_id=0 indication=onu_deactivation_completed subscribe=off',
+        //  '/Subscribe_ind object=onu olt_id=0 indication=key_exchange_completed subscribe=off']
+        // // await AXOSCard.execAspenShell({ipAddr:'10.245.51.35', slot:2, state:'init'}, cmdList)
+        // // await AXOSCard.execAspenShell({ipAddr:'10.245.34.156', slot:1, state:'init'}, cmdList)
+        // await AXOSCard.execAspenShell({ipAddr:'10.245.48.28', slot:1, state:'init'}, cmdList)
         // await AXOSCard.executeCommandsWithType('10.245.36.133', ['show card'], CommandType.CommandType_CLI)
+
+                let cmdList = ['show interface pon rx-power-history']
+
+        let res = await AXOSCard.executeCommands('10.245.36.135', cmdList)
     })()
 }
 

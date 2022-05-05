@@ -333,7 +333,12 @@ export class InvestigateClient {
         }
         let that = this
         function checkRegCLiMatch() {
-            let reg = new RegExp(that.prompt.substr(0, that.prompt.length -1) + '\\(\\S+\\)#')
+            let promoteTmp = that.prompt
+            if (promoteTmp.indexOf("\\") != -1) {
+                let splitlist = promoteTmp.split("\\")
+                promoteTmp =  splitlist.join("\\\\")        
+            }
+            let reg = new RegExp(promoteTmp.substr(0, promoteTmp.length -1) + '\\(\\S+\\)#')
             return reg.exec(dataString)
         }
 

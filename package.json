@@ -11,6 +11,7 @@
   "license": "ISC",
   "dependencies": {
     "@types/cheerio": "^0.22.30",
+    "@types/netconf": "^2.0.1",
     "@types/ping": "^0.2.0",
     "@types/sqlite3": "^3.1.7",
     "@types/ssh2": "^0.5.46",
@@ -20,6 +21,7 @@
     "cluster": "^0.7.7",
     "log4js": "^6.3.0",
     "net": "^1.0.2",
+    "netconf": "^2.0.1",
     "pbjs": "0.0.14",
     "ping": "^0.4.1",
     "protobufjs": "^6.10.2",

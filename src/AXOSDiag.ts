@@ -122,7 +122,7 @@ export class AXOSDiag extends AXOSCard {
         this.policymapCache = []
     }
 
-    async execCliCommand(cmd:string, cmdTimeOut:number=20000):Promise<string> {
+    async execCliCommand(cmd:string, cmdTimeOut:number=40000):Promise<string> {
         if (!this.invesClient) {
             return ''
         }
@@ -953,7 +953,7 @@ export class AXOSDiag extends AXOSCard {
 
 
     async BuildAllOnts():Promise<string[]> {
-        let cmdRes = await this.execCliCommand('show running-config ont')
+        let cmdRes = await this.execCliCommand('show running-config ont', 100000)
         let ontRes = this.diagOnt.findOnt(cmdRes)
         let ret:string[] = []
         for (let ont of ontRes) {
@@ -973,7 +973,7 @@ export class AXOSDiag extends AXOSCard {
     }
 
     async BuildAllOntsWithLinkinfo():Promise<DiagOntLink[]> {
-        let cmdRes = await this.execCliCommand('show running-config ont')
+        let cmdRes = await this.execCliCommand('show running-config ont', 300000)
         let ontRes = this.diagOnt.findOnt(cmdRes)
         let ret:DiagOntLink[] = []
         for (let ont of ontRes) {
@@ -984,7 +984,7 @@ export class AXOSDiag extends AXOSCard {
             })
         }
 
-        cmdRes = await this.execCliCommand('show ont-linkages ont-linkage')
+        cmdRes = await this.execCliCommand('show ont-linkages ont-linkage', 300000)
         let ontLinkage = await this.diagOnt.findOntLinkage(cmdRes)
         for (let ontLink of ontLinkage) {
             let ontId = ontLink[0] 
@@ -997,7 +997,7 @@ export class AXOSDiag extends AXOSCard {
             }
         }
 
-        cmdRes = await this.execCliCommand('show discovered-onts|csv')
+        cmdRes = await this.execCliCommand('show discovered-onts|csv', 300000)
         let ontDiscovers = await this.diagOnt.findDiscoverOnts(cmdRes)
         for (let ontDis of ontDiscovers) {
             let ontId = ontDis[5] 
@@ -1153,7 +1153,7 @@ export class AXOSDiag extends AXOSCard {
 if (__filename === require.main?.filename) {
     (async()=>{
         let axosDiag = new AXOSDiag()
-        let ret = await axosDiag.login('10.245.66.134')
+        let ret = await axosDiag.login('10.245.48.28')
         console.log(ret)
         logger.setLogLevel('std', 'error')
         logger.setLogLevel('file', 'info')
@@ -1180,11 +1180,11 @@ if (__filename === require.main?.filename) {
         // let res = await axosDiag.buildOntDiagCompose('x1101')
         // console.log(JSON.stringify(res))
 
-        // let res =  axosDiag.semExecBuildAllOntsWithLinkinfo()
-        // console.log(res)
-        let res 
-        res =  await axosDiag.SemExecBuildOntDiagCompose('szang_xgs');
-        console.log(JSON.stringify(res))
+        let res =  await axosDiag.semExecBuildAllOntsWithLinkinfo()
+        console.log(res)
+        // let res 
+        // res =  await axosDiag.SemExecBuildOntDiagCompose('szang_xgs');
+        // console.log(JSON.stringify(res))
 
         // axosDiag.semExecBuildAllOntsWithLinkinfo()
         // console.log(res)     
