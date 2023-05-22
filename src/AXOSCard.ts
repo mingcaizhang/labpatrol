@@ -570,7 +570,7 @@ export class AXOSCard {
 
     }
 
-
+    
     static async execAspenShell(cardMon: AspenCardMonitor, cmdList: string[]): Promise<number | any[]> {
         let rc = -1
         let axosCard = new AXOSCard()

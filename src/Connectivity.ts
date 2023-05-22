@@ -415,6 +415,12 @@ export class InvestigateClient {
         this.conn?.destroy()
     }
 
+    peekAndClearRecvData():string {
+        let streamData = this.streamData;
+        this.streamData = "";
+        return streamData;
+    }
+
     connect(host: string, userName: string, passWord: string): Promise<number> {
         this.conn = new SSH.Client();
         let that = this
