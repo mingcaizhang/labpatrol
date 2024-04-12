@@ -437,7 +437,7 @@ export class InvestigateClient {
                             that.conn.shell(function (err, stream) {
                                 if (err) {
                                     logger.error(err)
-                                    throw err;
+                                    resolve(-1)
                                 }
                                 that.stream = stream
                                 stream.on('close', function () {
