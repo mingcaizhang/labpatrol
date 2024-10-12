@@ -2,7 +2,7 @@ import * as cluster from 'cluster'
 import { Worker } from 'cluster';
 import * as events from 'events'
 import { BunchWork, cardResponse, ontResponse, moduleResponse, lldpResponse} from "./BunchWork"
-import { IpPrefixInfo, LabPatroType, sleepSecond, DBType } from './LabPatrolPub'
+import { IpPrefixInfo, LabPatroType, sleepSecond, DBType, getAxosModuleHeader } from './LabPatrolPub'
 import logger from './logger';
 import Vorpal = require('vorpal');
 // var Vorpal = require("vantage")();
@@ -875,11 +875,19 @@ class ClusterWork {
             return;
         }
 
+
         let tableSchema:TableSchema = {}  
         tableSchema['address'] = '';
         tableSchema['platform'] = '';
-        for (let key in moduleRes.moduleInfos[0]) {
-            tableSchema[key] = ''
+        if (moduleRes.platform === 'exa') {
+            for (let key in moduleRes.moduleInfos[0]) {
+                tableSchema[key] = ''
+            }
+        }else {
+            let schemaAxos = getAxosModuleHeader()
+            for (let key in schemaAxos) {
+                tableSchema[key] = ''
+            }
         }
 
         await this.dataStore?.createDbTable(tableName, tableSchema);
